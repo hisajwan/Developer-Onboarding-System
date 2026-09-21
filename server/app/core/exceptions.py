@@ -1,0 +1,34 @@
+"""Domain-level errors and the single place that maps them to HTTP responses."""
+
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+
+
+class AppError(Exception):
+    """Base class. Subclasses set the HTTP status and a stable machine-readable code."""
+
+    status_code = 500
+    code = "app_error"
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.message = message
+
+
+class NotFoundError(AppError):
+    status_code = 404
+    code = "not_found"
+
+
+class ConfigurationError(AppError):
+    status_code = 500
+    code = "configuration_error"
+
+
+def register_exception_handlers(app: FastAPI) -> None:
+    @app.exception_handler(AppError)
+    async def handle_app_error(_: Request, exc: AppError) -> JSONResponse:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"error": {"code": exc.code, "message": exc.message}},
+        )

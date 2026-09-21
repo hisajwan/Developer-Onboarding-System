@@ -1,0 +1,19 @@
+.DS_Store
+
+# secrets (examples stay tracked)
+.env
+.env.*
+!.env.example
+
+# python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# runtime data (uploaded docs, Chroma index)
+server/data/
+
+# local working notes
+/Dev
