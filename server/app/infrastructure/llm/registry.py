@@ -3,11 +3,13 @@
 from collections.abc import Callable
 
 from app.core.config import Settings
-from app.core.exceptions import ConfigurationError
 from app.domain.ports import LLMClient
+from app.infrastructure.llm.fake import FakeLLMClient
 from app.infrastructure.llm.gemini import GeminiLLMClient
+from app.infrastructure.provider_registry import build_provider
 
 _PROVIDERS: dict[str, Callable[[Settings], LLMClient]] = {
+    "fake": FakeLLMClient.from_settings,
     "gemini": GeminiLLMClient.from_settings,
     # "groq": GroqLLMClient.from_settings,
     # "openrouter": OpenRouterLLMClient.from_settings,
@@ -15,7 +17,4 @@ _PROVIDERS: dict[str, Callable[[Settings], LLMClient]] = {
 
 
 def create_llm_client(settings: Settings) -> LLMClient:
-    builder = _PROVIDERS.get(settings.llm_provider)
-    if builder is None:
-        raise ConfigurationError(f"LLM provider '{settings.llm_provider}' is not implemented yet.")
-    return builder(settings)
+    return build_provider("LLM", settings.llm_provider, _PROVIDERS, settings)

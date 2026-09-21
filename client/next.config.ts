@@ -1,6 +1,5 @@
 import type { NextConfig } from "next";
-
-const backendUrl = process.env.BACKEND_URL ?? "http://localhost:8000";
+import { BACKEND_URL } from "./src/config/backend";
 
 const nextConfig: NextConfig = {
   // The browser only ever talks to this origin; the backend URL stays server-side.
@@ -8,7 +7,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/api/backend/:path*",
-        destination: `${backendUrl}/api/v1/:path*`,
+        destination: `${BACKEND_URL}/api/v1/:path*`,
       },
     ];
   },

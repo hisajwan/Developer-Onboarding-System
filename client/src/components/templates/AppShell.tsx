@@ -1,11 +1,19 @@
 import type { ReactNode } from "react";
+import { APP_NAME } from "@/config/app";
 
-export function AppShell({ sidebar, children }: { sidebar: ReactNode; children: ReactNode }) {
+interface AppShellProps {
+  sidebar: ReactNode;
+  sidebarFooter?: ReactNode;
+  children: ReactNode;
+}
+
+export function AppShell({ sidebar, sidebarFooter, children }: AppShellProps) {
   return (
     <div className="flex min-h-screen">
-      <aside className="w-56 shrink-0 bg-surface p-4">
-        <p className="mb-6 px-1 text-sm font-bold">Onboarding assistant</p>
+      <aside className="flex w-56 shrink-0 flex-col bg-surface p-4">
+        <p className="mb-6 px-1 text-sm font-bold">{APP_NAME}</p>
         {sidebar}
+        {sidebarFooter && <div className="mt-auto pt-6">{sidebarFooter}</div>}
       </aside>
       <main className="flex-1 p-8">{children}</main>
     </div>

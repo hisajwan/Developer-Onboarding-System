@@ -20,6 +20,16 @@ class NotFoundError(AppError):
     code = "not_found"
 
 
+class UnauthorizedError(AppError):
+    status_code = 401
+    code = "not_authenticated"
+
+
+class InvalidCredentialsError(AppError):
+    status_code = 401
+    code = "invalid_credentials"
+
+
 class ConfigurationError(AppError):
     status_code = 500
     code = "configuration_error"

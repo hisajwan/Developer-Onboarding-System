@@ -7,7 +7,8 @@ from typing import Literal
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-LLMProviderName = Literal["gemini", "groq", "openrouter"]
+LLMProviderName = Literal["fake", "gemini", "groq", "openrouter"]
+EmbeddingProviderName = Literal["fake", "gemini"]
 
 
 class Settings(BaseSettings):
@@ -20,10 +21,18 @@ class Settings(BaseSettings):
     # JSON list in the environment, e.g. CORS_ORIGINS=["http://localhost:3000"]
     cors_origins: list[str] = ["http://localhost:3000"]
 
-    llm_provider: LLMProviderName = "gemini"
+    # "fake" needs no network or keys; switch to a real provider only after the integration gate.
+    llm_provider: LLMProviderName = "fake"
+    embedding_provider: EmbeddingProviderName = "fake"
     gemini_api_key: SecretStr | None = None
     groq_api_key: SecretStr | None = None
     openrouter_api_key: SecretStr | None = None
+
+    # Login gate: one user, checked on the server. Set all three in server/.env (off while unset).
+    auth_username: str | None = None
+    auth_password: SecretStr | None = None
+    auth_secret: SecretStr | None = None  # signs the session token
+    session_ttl_minutes: int = 480
 
     data_dir: Path = Path("data")
 
