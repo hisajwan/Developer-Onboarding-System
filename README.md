@@ -17,7 +17,7 @@ Backend (terminal 1):
 cd server
 python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
-cp .env.example .env          # add API keys here (server only)
+cp .env.example .env          # then set your own AUTH_PASSWORD and AUTH_SECRET (login); API keys stay server-only
 uvicorn app.main:app --reload --port 8000
 ```
 
@@ -36,5 +36,7 @@ Open http://localhost:3000. Health check: http://localhost:8000/api/v1/health.
 
 ```bash
 cd server && pytest && ruff check .
-cd client && npm run lint && npx tsc --noEmit && npm run build
+cd client && npm run lint && npm run typecheck && npm run build
 ```
+
+The same checks run in CI on every push to `main` and `dev` (`.github/workflows/ci.yml`).
