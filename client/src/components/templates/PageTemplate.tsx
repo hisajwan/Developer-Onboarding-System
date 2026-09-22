@@ -5,7 +5,9 @@ export function PageTemplate({ title, children }: { title: string; children: Rea
   return (
     <div className="flex h-full flex-col gap-6">
       <Heading>{title}</Heading>
-      <div className="flex-1">{children}</div>
+      {/* min-h-0 lets this shrink below its content's natural height, so a scrollable child
+          (e.g. Ask's message list) can actually claim the overflow instead of growing past it. */}
+      <div className="min-h-0 flex-1">{children}</div>
     </div>
   );
 }

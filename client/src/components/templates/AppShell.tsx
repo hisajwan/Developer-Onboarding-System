@@ -11,14 +11,16 @@ interface AppShellProps {
 
 export function AppShell({ sidebar, sidebarExtra, sidebarFooter, children }: AppShellProps) {
   return (
-    <div className="flex min-h-screen">
+    // The shell is pinned to the viewport height; only the regions below that declare their own
+    // overflow (main's content, and the docs upload list) scroll — the sidebar never does.
+    <div className="flex h-screen overflow-hidden">
       <aside className="flex w-56 shrink-0 flex-col bg-surface p-4">
         <p className="mb-6 px-1 text-sm font-bold">{APP_NAME}</p>
         {sidebar}
         {sidebarExtra && <div className="mt-6">{sidebarExtra}</div>}
         {sidebarFooter && <div className="mt-auto pt-6">{sidebarFooter}</div>}
       </aside>
-      <main className="flex-1 p-8">{children}</main>
+      <main className="min-h-0 flex-1 overflow-y-auto p-8">{children}</main>
     </div>
   );
 }
