@@ -15,6 +15,7 @@ from app.core.config import Settings
 from app.domain.ports import (
     Agent,
     ChatHistory,
+    ChatSessionRegistry,
     DocumentReader,
     DocumentRegistry,
     DocumentStore,
@@ -32,12 +33,15 @@ from app.infrastructure.embeddings.registry import create_embedder
 from app.infrastructure.llm.registry import create_llm_client
 from app.infrastructure.storage.disk_documents import DiskDocumentStore
 from app.infrastructure.storage.sqlite_chat_history import SqliteChatHistory
+from app.infrastructure.storage.sqlite_chat_session_registry import SqliteChatSessionRegistry
 from app.infrastructure.storage.sqlite_project_registry import SqliteProjectRegistry
 from app.infrastructure.storage.sqlite_registry import SqliteDocumentRegistry
 from app.infrastructure.storage.sqlite_user_registry import SqliteUserRegistry
 from app.infrastructure.vectorstore.chroma_store import ChromaVectorStore
+from app.services.chat_session_service import ChatSessionService
 from app.services.ingestion_service import IngestionService
 from app.services.project_service import ProjectService
+from app.services.user_profile_service import UserProfileService
 
 
 class Container:
@@ -85,8 +89,20 @@ class Container:
         return SqliteChatHistory(self._settings.database_path)
 
     @cached_property
+    def chat_session_registry(self) -> ChatSessionRegistry:
+        return SqliteChatSessionRegistry(self._settings.database_path)
+
+    @cached_property
     def project_service(self) -> ProjectService:
         return ProjectService(self.user_registry, self.project_registry)
+
+    @cached_property
+    def chat_session_service(self) -> ChatSessionService:
+        return ChatSessionService(self.project_service, self.chat_session_registry)
+
+    @cached_property
+    def user_profile_service(self) -> UserProfileService:
+        return UserProfileService(self.user_registry)
 
     @cached_property
     def document_reader(self) -> DocumentReader:

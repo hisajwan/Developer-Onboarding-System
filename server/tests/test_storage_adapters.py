@@ -79,6 +79,34 @@ async def test_registry_survives_a_restart(tmp_path: Path) -> None:
 
 
 @pytest.mark.anyio
+async def test_deleting_a_document_removes_it(registry: SqliteDocumentRegistry) -> None:
+    await registry.record(PROJECT, document())
+
+    assert await registry.delete(PROJECT, "a.md") is True
+    assert await registry.get(PROJECT, "a.md") is None
+
+
+@pytest.mark.anyio
+async def test_deleting_an_unknown_document_reports_nothing_removed(
+    registry: SqliteDocumentRegistry,
+) -> None:
+    assert await registry.delete(PROJECT, "missing.md") is False
+
+
+@pytest.mark.anyio
+async def test_deleting_in_one_project_leaves_the_other_alone(
+    registry: SqliteDocumentRegistry,
+) -> None:
+    await registry.record(PROJECT, document())
+    await registry.record(OTHER_PROJECT, document())
+
+    await registry.delete(PROJECT, "a.md")
+
+    assert await registry.get(PROJECT, "a.md") is None
+    assert await registry.get(OTHER_PROJECT, "a.md") == document()
+
+
+@pytest.mark.anyio
 async def test_disk_store_writes_the_file_and_lists_names_sorted(tmp_path: Path) -> None:
     store = DiskDocumentStore(tmp_path / "docs")
 
@@ -116,3 +144,21 @@ async def test_disk_store_lists_nothing_for_a_project_with_no_files(tmp_path: Pa
     store = DiskDocumentStore(tmp_path / "docs")
 
     assert await store.list_filenames("never-used") == []
+
+
+@pytest.mark.anyio
+async def test_disk_store_deletes_a_file(tmp_path: Path) -> None:
+    store = DiskDocumentStore(tmp_path / "docs")
+    await store.save(PROJECT, "a.md", b"content")
+
+    assert await store.delete(PROJECT, "a.md") is True
+    assert await store.list_filenames(PROJECT) == []
+
+
+@pytest.mark.anyio
+async def test_disk_store_deleting_an_unknown_file_reports_nothing_removed(
+    tmp_path: Path,
+) -> None:
+    store = DiskDocumentStore(tmp_path / "docs")
+
+    assert await store.delete(PROJECT, "missing.md") is False

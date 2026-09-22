@@ -4,7 +4,15 @@ import { useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import { cn } from "@/lib/cn";
 
 interface DocumentDropzoneProps {
-  onFiles: (files: FileList) => void;
+  /**
+   * A plain array, not the DOM's own FileList - `event.target.files`/`dataTransfer.files` are
+   * *live* objects tied to the input element, and get cleared the moment its value is reset
+   * (right after this fires, so the input can accept the same file again later). Snapshotting
+   * into a real array here, before that reset, means no caller can be bitten by acting on it
+   * after the fact (e.g. inside a state updater callback, which React doesn't run inline - see
+   * the "nothing shows up" bug this exact gap caused in CreateProjectScreen).
+   */
+  onFiles: (files: File[]) => void;
   disabled?: boolean;
 }
 
@@ -19,7 +27,7 @@ export function DocumentDropzone({ onFiles, disabled }: DocumentDropzoneProps) {
   function handleDrop(event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
     setIsDragOver(false);
-    if (!disabled && event.dataTransfer.files.length) onFiles(event.dataTransfer.files);
+    if (!disabled && event.dataTransfer.files.length) onFiles(Array.from(event.dataTransfer.files));
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
@@ -59,7 +67,7 @@ export function DocumentDropzone({ onFiles, disabled }: DocumentDropzoneProps) {
         className="hidden"
         disabled={disabled}
         onChange={(event) => {
-          if (event.target.files?.length) onFiles(event.target.files);
+          if (event.target.files?.length) onFiles(Array.from(event.target.files));
           event.target.value = "";
         }}
       />

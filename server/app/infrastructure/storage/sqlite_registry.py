@@ -40,6 +40,9 @@ class SqliteDocumentRegistry:
     async def list_all(self, project_id: str) -> list[IndexedDocument]:
         return await asyncio.to_thread(self._list_all, project_id)
 
+    async def delete(self, project_id: str, filename: str) -> bool:
+        return await asyncio.to_thread(self._delete, project_id, filename)
+
     def _get(self, project_id: str, filename: str) -> IndexedDocument | None:
         with closing(self._connect()) as connection:
             row = connection.execute(
@@ -76,6 +79,14 @@ class SqliteDocumentRegistry:
                 (project_id,),
             ).fetchall()
         return [_to_document(row) for row in rows]
+
+    def _delete(self, project_id: str, filename: str) -> bool:
+        with closing(self._connect()) as connection, connection:
+            cursor = connection.execute(
+                "DELETE FROM documents WHERE project_id = ? AND filename = ?",
+                (project_id, filename),
+            )
+        return cursor.rowcount > 0
 
 
 def _to_document(row: tuple) -> IndexedDocument:

@@ -1,33 +1,19 @@
 "use client";
 
-import { usePathname } from "next/navigation";
-import { useCallback } from "react";
 import { ProjectDocsPanel } from "@/components/organisms/ProjectDocsPanel";
-import { useDocumentUpload } from "@/hooks/useDocumentUpload";
-import { useProjectDocuments } from "@/hooks/useProjectDocuments";
+import { useProjectDocumentsContext } from "./ProjectDocumentsProvider";
 import { useProjectContext } from "./ProjectProvider";
 
-const PATHS_WITH_DOCS_PANEL = ["/ask", "/code-review"];
-
-/**
- * Shown in the shared sidebar on any screen that works from the project's docs (Ask, Code
- * review) — not the Dashboard, which has nothing to upload to.
- */
+/** Shown alongside every module (Dashboard, Ask, Code review) once a project is active. */
 export function ProjectDocsSidebar() {
-  const pathname = usePathname();
-  const { currentProjectId } = useProjectContext();
-  const { documents, isLoadingDocuments, reload } = useProjectDocuments(currentProjectId);
-  const { uploads, upload } = useDocumentUpload(currentProjectId);
+  const { currentProjectId, isCreateScreenOpen } = useProjectContext();
+  const { documents, isLoadingDocuments, uploads, uploadFiles, deleteFile } =
+    useProjectDocumentsContext();
 
-  const uploadAndRefresh = useCallback(
-    async (files: FileList) => {
-      await upload(files);
-      await reload();
-    },
-    [upload, reload],
-  );
-
-  if (!PATHS_WITH_DOCS_PANEL.includes(pathname)) return null;
+  // Hidden while creating a project: this panel reflects whatever project was current *before*
+  // that screen opened (which is now deselected - see ProjectProvider), so showing it here would
+  // look like those documents belong to the project being created.
+  if (isCreateScreenOpen) return null;
   if (!currentProjectId) return null; // the page itself prompts for a project in this state
 
   return (
@@ -35,7 +21,8 @@ export function ProjectDocsSidebar() {
       documents={documents}
       isLoadingDocuments={isLoadingDocuments}
       uploads={uploads}
-      onFiles={uploadAndRefresh}
+      onFiles={uploadFiles}
+      onDelete={deleteFile}
     />
   );
 }

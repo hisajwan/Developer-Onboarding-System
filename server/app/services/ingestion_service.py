@@ -1,7 +1,7 @@
 from collections.abc import Callable
 from datetime import UTC, datetime
 
-from app.core.exceptions import DocumentTooLargeError, InvalidDocumentError
+from app.core.exceptions import DocumentTooLargeError, InvalidDocumentError, NotFoundError
 from app.domain.models import Chunk, ChunkRecord, IndexedDocument, IngestionResult
 from app.domain.ports import (
     DocumentReader,
@@ -123,3 +123,12 @@ class IngestionService:
 
     async def list_documents(self, project_id: str) -> list[IndexedDocument]:
         return await self._registry.list_all(project_id)
+
+    async def delete_document(self, project_id: str, filename: str) -> None:
+        name = safe_filename(filename)
+        removed = await self._registry.delete(project_id, name)
+        if not removed:
+            raise NotFoundError(f"'{name}' is not indexed in this project.")
+        # No keep_ids at all: every chunk this source has in the vector store is stale now.
+        await self._vectors.remove_stale(project_id, name, keep_ids=set())
+        await self._documents.delete(project_id, name)

@@ -106,9 +106,10 @@ def test_signup_rejects_a_blank_name(client: TestClient) -> None:
 
 
 def test_logged_in_client_can_use_protected_endpoints(
-    auth_client: TestClient, project_id: str
+    auth_client: TestClient, project_id: str, chat_session_id: str
 ) -> None:
-    response = auth_client.post(f"/api/v1/projects/{project_id}/chat", json={"message": "hello"})
+    url = f"/api/v1/projects/{project_id}/sessions/{chat_session_id}/chat"
+    response = auth_client.post(url, json={"message": "hello"})
     assert response.status_code == 200
 
 
@@ -136,10 +137,13 @@ def test_wrong_username_gets_the_same_answer_as_a_wrong_password(client: TestCli
     assert wrong_user.json() == wrong_password.json()
 
 
-def test_logout_ends_the_session(auth_client: TestClient, project_id: str) -> None:
+def test_logout_ends_the_session(
+    auth_client: TestClient, project_id: str, chat_session_id: str
+) -> None:
     assert auth_client.post("/api/v1/logout").status_code == 204
 
-    response = auth_client.post(f"/api/v1/projects/{project_id}/chat", json={"message": "hello"})
+    url = f"/api/v1/projects/{project_id}/sessions/{chat_session_id}/chat"
+    response = auth_client.post(url, json={"message": "hello"})
     assert response.status_code == 401
 
 

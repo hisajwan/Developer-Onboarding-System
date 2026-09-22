@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from app.core.exceptions import DocumentTooLargeError, InvalidDocumentError
+from app.core.exceptions import DocumentTooLargeError, InvalidDocumentError, NotFoundError
 from app.infrastructure.captioning.fake import FakeImageCaptioner
 from app.infrastructure.documents.readers import FileReader
 from app.infrastructure.embeddings.fake import FakeEmbedder
@@ -101,6 +101,9 @@ class World:
 
     async def list_documents(self):
         return await self.service.list_documents(PROJECT)
+
+    async def delete_document(self, filename: str):
+        return await self.service.delete_document(PROJECT, filename)
 
 
 def doc(word_count: int, prefix: str = "w") -> bytes:
@@ -370,3 +373,43 @@ async def test_list_documents_returns_what_was_indexed(world: World) -> None:
     await world.ingest("a.md", doc(10))
 
     assert [d.filename for d in await world.list_documents()] == ["a.md"]
+
+
+@pytest.mark.anyio
+async def test_delete_document_removes_it_from_everywhere(world: World) -> None:
+    await world.ingest("setup.md", doc(40))
+
+    await world.delete_document("setup.md")
+
+    assert await world.list_documents() == []
+    assert world.documents.files == {}
+    assert world.vectors.ids_for("setup.md") == set()
+
+
+@pytest.mark.anyio
+async def test_delete_document_leaves_other_documents_alone(world: World) -> None:
+    await world.ingest("a.md", doc(10))
+    await world.ingest("b.md", doc(10, "x"))
+
+    await world.delete_document("a.md")
+
+    assert [d.filename for d in await world.list_documents()] == ["b.md"]
+    assert len(world.vectors.ids_for("b.md")) > 0
+
+
+@pytest.mark.anyio
+async def test_delete_an_unknown_document_is_not_found(world: World) -> None:
+    with pytest.raises(NotFoundError):
+        await world.delete_document("never-uploaded.md")
+
+
+@pytest.mark.anyio
+async def test_a_deleted_document_can_be_re_uploaded_and_fully_re_indexed(world: World) -> None:
+    await world.ingest("setup.md", doc(40))
+    await world.delete_document("setup.md")
+    embedded_before = world.embedder.texts_embedded
+
+    result = await world.ingest("setup.md", doc(40))
+
+    assert result.status == "indexed"
+    assert world.embedder.texts_embedded - embedded_before == 10  # re-embedded, not skipped

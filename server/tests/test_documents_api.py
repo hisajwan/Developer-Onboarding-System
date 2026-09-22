@@ -26,6 +26,10 @@ def list_documents(client: TestClient, project_id: str):
     return client.get(f"/api/v1/projects/{project_id}/documents")
 
 
+def delete_document(client: TestClient, project_id: str, filename: str):
+    return client.delete(f"/api/v1/projects/{project_id}/documents/{filename}")
+
+
 def embedded_count(client: TestClient) -> int:
     return client.app.state.container.embedder.texts_embedded
 
@@ -205,3 +209,41 @@ def test_documents_on_someone_elses_project_is_not_found(
 
 def test_documents_on_an_unknown_project_is_not_found(auth_client: TestClient) -> None:
     assert list_documents(auth_client, "no-such-project").status_code == 404
+
+
+def test_delete_a_document(auth_client: TestClient, project_id: str) -> None:
+    upload(auth_client, project_id, "guide.md", GUIDE)
+
+    response = delete_document(auth_client, project_id, "guide.md")
+
+    assert response.status_code == 204
+    assert list_documents(auth_client, project_id).json()["documents"] == []
+
+
+def test_delete_an_unknown_document_is_not_found(auth_client: TestClient, project_id: str) -> None:
+    response = delete_document(auth_client, project_id, "never-uploaded.md")
+
+    assert response.status_code == 404
+
+
+def test_deleting_from_one_project_does_not_touch_another(
+    auth_client: TestClient, project_id: str, settings: Settings
+) -> None:
+    other_project = seed_project(settings, name="Another Project")
+    upload(auth_client, project_id, "guide.md", GUIDE)
+    upload(auth_client, other_project.id, "guide.md", GUIDE)
+
+    delete_document(auth_client, project_id, "guide.md")
+
+    assert list_documents(auth_client, project_id).json()["documents"] == []
+    assert len(list_documents(auth_client, other_project.id).json()["documents"]) == 1
+
+
+def test_delete_on_someone_elses_project_is_not_found(
+    auth_client: TestClient, settings: Settings
+) -> None:
+    someone_elses = seed_project(settings, owner_username="other-user")
+
+    response = delete_document(auth_client, someone_elses.id, "guide.md")
+
+    assert response.status_code == 404

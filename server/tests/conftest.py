@@ -9,8 +9,9 @@ from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
 from app.core.config import Settings
-from app.domain.models import Project, User
+from app.domain.models import ChatSession, Project, User
 from app.infrastructure.auth.passwords import hash_password
+from app.infrastructure.storage.sqlite_chat_session_registry import SqliteChatSessionRegistry
 from app.infrastructure.storage.sqlite_project_registry import SqliteProjectRegistry
 from app.infrastructure.storage.sqlite_user_registry import SqliteUserRegistry
 from app.main import create_app
@@ -20,6 +21,7 @@ USERNAME = "dev"
 PASSWORD = secrets.token_urlsafe(12)
 SECRET = secrets.token_urlsafe(32)
 PROJECT_NAME = "Test Project"
+SESSION_NAME = "Test Session"
 
 
 def seed_user(settings: Settings, username: str = USERNAME, password: str = PASSWORD) -> None:
@@ -47,6 +49,17 @@ def seed_project(
     return project
 
 
+def seed_chat_session(
+    settings: Settings, project_id: str, name: str = SESSION_NAME
+) -> ChatSession:
+    """Puts a chat session straight into the settings' own table, bypassing HTTP."""
+    session = ChatSession(
+        id=str(uuid4()), project_id=project_id, name=name, created_at=datetime.now(UTC)
+    )
+    asyncio.run(SqliteChatSessionRegistry(settings.database_path).create(session))
+    return session
+
+
 @pytest.fixture
 def settings(tmp_path: Path) -> Settings:
     settings = Settings(
@@ -68,6 +81,17 @@ def project(settings: Settings) -> Project:
 @pytest.fixture
 def project_id(project: Project) -> str:
     return project.id
+
+
+@pytest.fixture
+def chat_session(settings: Settings, project: Project) -> ChatSession:
+    """A chat session already in the seeded project, for tests of anything chat-scoped."""
+    return seed_chat_session(settings, project.id)
+
+
+@pytest.fixture
+def chat_session_id(chat_session: ChatSession) -> str:
+    return chat_session.id
 
 
 @pytest.fixture

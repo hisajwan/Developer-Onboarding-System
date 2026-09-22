@@ -5,10 +5,13 @@ from app.domain.models import ChatMessage, ChatRole
 
 @runtime_checkable
 class ChatHistory(Protocol):
-    """A project's saved conversation, so the agent's memory and the Ask screen survive a reload."""
+    """A chat session's saved conversation, so the agent's memory and the Ask screen survive a
 
-    async def append(self, project_id: str, role: ChatRole, content: str) -> None: ...
+    reload.
+    """
 
-    async def list_for_project(self, project_id: str, limit: int = 50) -> list[ChatMessage]:
+    async def append(self, session_id: str, role: ChatRole, content: str) -> None: ...
+
+    async def list_for_session(self, session_id: str, limit: int = 50) -> list[ChatMessage]:
         """Oldest first, capped to the most recent `limit` messages."""
         ...

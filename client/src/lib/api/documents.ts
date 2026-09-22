@@ -11,3 +11,9 @@ export async function listDocuments(projectId: string): Promise<UploadedDocument
   const { documents } = await apiFetch<DocumentListResponse>(`/projects/${projectId}/documents`);
   return documents;
 }
+
+export function deleteDocument(projectId: string, filename: string): Promise<void> {
+  return apiFetch<void>(`/projects/${projectId}/documents/${encodeURIComponent(filename)}`, {
+    method: "DELETE",
+  });
+}

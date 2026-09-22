@@ -2,6 +2,7 @@
 
 from app.domain.ports.agent import Agent
 from app.domain.ports.chat_history import ChatHistory
+from app.domain.ports.chat_session_registry import ChatSessionRegistry
 from app.domain.ports.document_reader import DocumentReader
 from app.domain.ports.document_registry import DocumentRegistry
 from app.domain.ports.document_store import DocumentStore
@@ -17,6 +18,7 @@ from app.domain.ports.vector_store import VectorStore
 __all__ = [
     "Agent",
     "ChatHistory",
+    "ChatSessionRegistry",
     "DocumentReader",
     "DocumentRegistry",
     "DocumentStore",

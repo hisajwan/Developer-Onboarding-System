@@ -4,26 +4,29 @@ import { useCallback, useEffect, useState } from "react";
 import { getChatHistory, sendChatMessage } from "@/lib/api/chat";
 import type { ChatMessage } from "@/types/chat";
 
-/** `null` while no project is selected yet - chat stays empty and sending is a no-op. */
-export function useChat(projectId: string | null) {
+/**
+ * Either id `null` while no project/session is selected yet - chat stays empty and sending is a
+ * no-op until both exist.
+ */
+export function useChat(projectId: string | null, sessionId: string | null) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Reloads the saved conversation whenever the selected project changes, including on the first
+  // Reloads the saved conversation whenever the selected session changes, including on the first
   // mount after a page reload - this is what makes the chat survive a refresh, not just a nav.
   useEffect(() => {
     let cancelled = false;
 
     async function loadHistory() {
-      if (!projectId) {
+      if (!projectId || !sessionId) {
         setMessages([]);
         return;
       }
       setIsLoadingHistory(true);
       try {
-        const history = await getChatHistory(projectId);
+        const history = await getChatHistory(projectId, sessionId);
         if (cancelled) return;
         setMessages(
           history.messages.map((message) => ({
@@ -33,7 +36,7 @@ export function useChat(projectId: string | null) {
           })),
         );
       } catch {
-        // A failed history load starts the project with an empty (not broken) chat.
+        // A failed history load starts the session with an empty (not broken) chat.
       } finally {
         if (!cancelled) setIsLoadingHistory(false);
       }
@@ -43,11 +46,11 @@ export function useChat(projectId: string | null) {
     return () => {
       cancelled = true;
     };
-  }, [projectId]);
+  }, [projectId, sessionId]);
 
   const send = useCallback(
     async (text: string) => {
-      if (!projectId) return;
+      if (!projectId || !sessionId) return;
       setError(null);
       setMessages((current) => [
         ...current,
@@ -55,7 +58,7 @@ export function useChat(projectId: string | null) {
       ]);
       setIsSending(true);
       try {
-        const response = await sendChatMessage(projectId, text);
+        const response = await sendChatMessage(projectId, sessionId, text);
         setMessages((current) => [
           ...current,
           {
@@ -71,7 +74,7 @@ export function useChat(projectId: string | null) {
         setIsSending(false);
       }
     },
-    [projectId],
+    [projectId, sessionId],
   );
 
   return { messages, isLoadingHistory, isSending, error, send };

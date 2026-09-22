@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile
+from fastapi import APIRouter, UploadFile, status
 
 from app.api.deps import IngestionServiceDep, OwnedProjectDep
 from app.schemas.documents import DocumentListResponse, DocumentResponse, UploadResponse
@@ -22,3 +22,10 @@ async def list_documents(
 ) -> DocumentListResponse:
     documents = await service.list_documents(project.id)
     return DocumentListResponse(documents=[DocumentResponse.from_domain(d) for d in documents])
+
+
+@router.delete("/documents/{filename}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_document(
+    filename: str, project: OwnedProjectDep, service: IngestionServiceDep
+) -> None:
+    await service.delete_document(project.id, filename)

@@ -22,15 +22,15 @@ class FakeHistory:
     def __init__(self) -> None:
         self.messages: list[tuple[str, ChatRole, str]] = []
 
-    async def append(self, project_id: str, role: ChatRole, content: str) -> None:
-        self.messages.append((project_id, role, content))
+    async def append(self, session_id: str, role: ChatRole, content: str) -> None:
+        self.messages.append((session_id, role, content))
 
-    async def list_for_project(self, project_id: str, limit: int = 50) -> list[ChatMessage]:
+    async def list_for_session(self, session_id: str, limit: int = 50) -> list[ChatMessage]:
         now = datetime.now(UTC)
         return [
             ChatMessage(role=role, content=content, created_at=now)
-            for pid, role, content in self.messages
-            if pid == project_id
+            for sid, role, content in self.messages
+            if sid == session_id
         ][-limit:]
 
 
@@ -46,7 +46,7 @@ def history() -> FakeHistory:
 
 @pytest.fixture
 def service(agent: RecordingAgent, history: FakeHistory) -> ChatService:
-    return ChatService(agent, history, "proj-1")
+    return ChatService(agent, history, "session-1")
 
 
 @pytest.mark.anyio
@@ -64,8 +64,8 @@ async def test_handle_saves_both_turns_to_history(
     await service.handle(ChatRequest(message="How do I set up?"))
 
     assert history.messages == [
-        ("proj-1", "user", "How do I set up?"),
-        ("proj-1", "assistant", "Run npm install."),
+        ("session-1", "user", "How do I set up?"),
+        ("session-1", "assistant", "Run npm install."),
     ]
 
 
@@ -73,8 +73,8 @@ async def test_handle_saves_both_turns_to_history(
 async def test_handle_passes_prior_history_to_the_agent(
     service: ChatService, agent: RecordingAgent, history: FakeHistory
 ) -> None:
-    await history.append("proj-1", "user", "earlier question")
-    await history.append("proj-1", "assistant", "earlier answer")
+    await history.append("session-1", "user", "earlier question")
+    await history.append("session-1", "assistant", "earlier answer")
 
     await service.handle(ChatRequest(message="a follow-up"))
 
@@ -84,11 +84,11 @@ async def test_handle_passes_prior_history_to_the_agent(
 
 
 @pytest.mark.anyio
-async def test_handle_does_not_leak_another_projects_history(
+async def test_handle_does_not_leak_another_sessions_history(
     agent: RecordingAgent, history: FakeHistory
 ) -> None:
-    await history.append("other-project", "user", "not mine")
-    service = ChatService(agent, history, "proj-1")
+    await history.append("other-session", "user", "not mine")
+    service = ChatService(agent, history, "session-1")
 
     await service.handle(ChatRequest(message="hello"))
 
@@ -97,10 +97,10 @@ async def test_handle_does_not_leak_another_projects_history(
 
 
 @pytest.mark.anyio
-async def test_get_history_returns_this_projects_saved_messages(
+async def test_get_history_returns_this_sessions_saved_messages(
     service: ChatService, history: FakeHistory
 ) -> None:
-    await history.append("proj-1", "user", "hi")
+    await history.append("session-1", "user", "hi")
 
     messages = await service.get_history()
 

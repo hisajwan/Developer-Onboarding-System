@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   createProject as apiCreateProject,
   listProjects,
@@ -18,6 +18,11 @@ interface ProjectContextValue {
   selectProject: (projectId: string) => void;
   createProject: (name: string) => Promise<Project>;
   renameProject: (projectId: string, name: string) => Promise<void>;
+  /** The "create a project" screen - shown full-page when there are none yet, or opened over the
+   * current one on request (see ProjectSwitcher's "+"). */
+  isCreateScreenOpen: boolean;
+  openCreateScreen: () => void;
+  closeCreateScreen: () => void;
 }
 
 const ProjectContext = createContext<ProjectContextValue | null>(null);
@@ -29,14 +34,18 @@ interface ProjectProviderProps {
 }
 
 /**
- * Holds which project is active at the layout level, so every screen (Ask, its docs panel, and
- * later Code review/Dashboard) shares one selection instead of each picking its own.
+ * Holds which project is active at the layout level, so every screen (Dashboard, Ask, Code
+ * review) shares one selection instead of each picking its own.
  */
 export function ProjectProvider({ initialProjectId, children }: ProjectProviderProps) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(initialProjectId);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isCreateScreenOpen, setIsCreateScreenOpen] = useState(false);
+  // What was selected right before opening the create screen, so Cancel can put it back - a plain
+  // ref, not state, since nothing ever needs to render off this value directly.
+  const projectBeforeCreateScreenRef = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -63,9 +72,26 @@ export function ProjectProvider({ initialProjectId, children }: ProjectProviderP
 
   const selectProject = useCallback((projectId: string) => {
     setCurrentProjectId(projectId);
+    // Picking a project from the switcher is also how you back out of the create-project screen -
+    // the dropdown should always return you to normal view, not just its Cancel button.
+    setIsCreateScreenOpen(false);
     // Best-effort: the switch already happened locally; a failed write here only means the next
     // login restores a stale project, not something worth blocking or erroring the UI over.
     apiSelectProject(projectId).catch(() => {});
+  }, []);
+
+  const openCreateScreen = useCallback(() => {
+    projectBeforeCreateScreenRef.current = currentProjectId;
+    // Deselecting matters: with the previous project still "selected" in the dropdown, re-picking
+    // it (the only way back when there's just one project) wouldn't fire a change event at all,
+    // since as far as the <select> element is concerned nothing changed.
+    setCurrentProjectId(null);
+    setIsCreateScreenOpen(true);
+  }, [currentProjectId]);
+
+  const closeCreateScreen = useCallback(() => {
+    setCurrentProjectId(projectBeforeCreateScreenRef.current);
+    setIsCreateScreenOpen(false);
   }, []);
 
   const createProject = useCallback(
@@ -96,6 +122,9 @@ export function ProjectProvider({ initialProjectId, children }: ProjectProviderP
         selectProject,
         createProject,
         renameProject,
+        isCreateScreenOpen,
+        openCreateScreen,
+        closeCreateScreen,
       }}
     >
       {children}

@@ -7,13 +7,15 @@ from fastapi import Depends, Request
 from app.api.container import Container
 from app.api.session_cookie import SESSION_COOKIE
 from app.core.config import Settings
-from app.domain.models import Project
+from app.domain.models import ChatSession, Project
 from app.domain.ports import Agent
 from app.infrastructure.auth.jwt_tokens import JwtSessionTokens
 from app.services.auth_service import AuthService
 from app.services.chat_service import ChatService
+from app.services.chat_session_service import ChatSessionService
 from app.services.ingestion_service import IngestionService
 from app.services.project_service import ProjectService
+from app.services.user_profile_service import UserProfileService
 
 
 def get_app_settings(request: Request) -> Settings:
@@ -55,6 +57,13 @@ def require_session(request: Request, auth: AuthServiceDep) -> str:
 SessionDep = Annotated[str, Depends(require_session)]
 
 
+def get_user_profile_service(container: ContainerDep) -> UserProfileService:
+    return container.user_profile_service
+
+
+UserProfileServiceDep = Annotated[UserProfileService, Depends(get_user_profile_service)]
+
+
 def get_project_service(container: ContainerDep) -> ProjectService:
     return container.project_service
 
@@ -75,14 +84,31 @@ async def require_owned_project(
 OwnedProjectDep = Annotated[Project, Depends(require_owned_project)]
 
 
+def get_chat_session_service(container: ContainerDep) -> ChatSessionService:
+    return container.chat_session_service
+
+
+ChatSessionServiceDep = Annotated[ChatSessionService, Depends(get_chat_session_service)]
+
+
+async def require_owned_session(
+    project_id: str, session_id: str, username: SessionDep, service: ChatSessionServiceDep
+) -> ChatSession:
+    """Route dependency for any `/projects/{project_id}/sessions/{session_id}/...` route."""
+    return await service.get_owned_session(username, project_id, session_id)
+
+
+OwnedSessionDep = Annotated[ChatSession, Depends(require_owned_session)]
+
+
 def get_agent(project: OwnedProjectDep, container: ContainerDep) -> Agent:
     return container.agent_for(project.id)
 
 
 def get_chat_service(
-    agent: Annotated[Agent, Depends(get_agent)], project: OwnedProjectDep, container: ContainerDep
+    agent: Annotated[Agent, Depends(get_agent)], session: OwnedSessionDep, container: ContainerDep
 ) -> ChatService:
-    return ChatService(agent, container.chat_history, project.id)
+    return ChatService(agent, container.chat_history, session.id)
 
 
 ChatServiceDep = Annotated[ChatService, Depends(get_chat_service)]

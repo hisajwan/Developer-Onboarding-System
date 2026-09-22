@@ -3,6 +3,7 @@
 import { useState, type ChangeEvent, type FormEvent } from "react";
 import { Button } from "@/components/atoms/Button";
 import { TextInput } from "@/components/atoms/TextInput";
+import { isValidEmail } from "@/lib/validation";
 import type { SignupFields } from "@/types/auth";
 
 interface SignupFormProps {
@@ -21,7 +22,16 @@ const EMPTY_FIELDS: SignupFields = {
 
 export function SignupForm({ onSubmit, isSubmitting, error }: SignupFormProps) {
   const [fields, setFields] = useState<SignupFields>(EMPTY_FIELDS);
-  const canSubmit = Object.values(fields).every((value) => value !== "") && !isSubmitting;
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  const emailLooksValid = fields.email === "" || isValidEmail(fields.email);
+  const passwordsMatch = confirmPassword === "" || fields.password === confirmPassword;
+  const canSubmit =
+    Object.values(fields).every((value) => value !== "") &&
+    confirmPassword !== "" &&
+    isValidEmail(fields.email) &&
+    fields.password === confirmPassword &&
+    !isSubmitting;
 
   function set<K extends keyof SignupFields>(key: K) {
     return (event: ChangeEvent<HTMLInputElement>) =>
@@ -53,6 +63,7 @@ export function SignupForm({ onSubmit, isSubmitting, error }: SignupFormProps) {
       <label className="flex flex-col gap-1 text-xs font-medium">
         Email
         <TextInput type="email" value={fields.email} onChange={set("email")} autoComplete="email" />
+        {!emailLooksValid && <span className="text-xs text-danger">Enter a valid email address.</span>}
       </label>
       <label className="flex flex-col gap-1 text-xs font-medium">
         Username
@@ -67,6 +78,17 @@ export function SignupForm({ onSubmit, isSubmitting, error }: SignupFormProps) {
           autoComplete="new-password"
           minLength={8}
         />
+      </label>
+      <label className="flex flex-col gap-1 text-xs font-medium">
+        Confirm password
+        <TextInput
+          type="password"
+          value={confirmPassword}
+          onChange={(event) => setConfirmPassword(event.target.value)}
+          autoComplete="new-password"
+          minLength={8}
+        />
+        {!passwordsMatch && <span className="text-xs text-danger">Passwords do not match.</span>}
       </label>
       {error && (
         <p role="alert" className="text-xs text-danger">

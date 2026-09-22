@@ -6,7 +6,9 @@ import { getSession } from "@/lib/api/session";
 import { AppBody } from "./AppBody";
 import { AppNav } from "./AppNav";
 import { ChatProvider } from "./ChatProvider";
+import { ChatSessionProvider } from "./ChatSessionProvider";
 import { ProjectDocsSidebar } from "./ProjectDocsSidebar";
+import { ProjectDocumentsProvider } from "./ProjectDocumentsProvider";
 import { ProjectProvider } from "./ProjectProvider";
 import { SessionFooter } from "./SessionFooter";
 
@@ -16,16 +18,20 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
 
   return (
     <ProjectProvider initialProjectId={session.last_project_id}>
-      <ChatProvider>
-        <AppShell
-          sidebarTop={<ProjectSwitcher />}
-          sidebar={<AppNav entries={NAV_ENTRIES} />}
-          sidebarExtra={<ProjectDocsSidebar />}
-          sidebarFooter={<SessionFooter username={session.username} />}
-        >
-          <AppBody>{children}</AppBody>
-        </AppShell>
-      </ChatProvider>
+      <ProjectDocumentsProvider>
+        <ChatSessionProvider>
+          <ChatProvider>
+            <AppShell
+              projectSwitcher={<ProjectSwitcher />}
+              nav={<AppNav entries={NAV_ENTRIES} />}
+              docsPanel={<ProjectDocsSidebar />}
+              footer={<SessionFooter username={session.username} />}
+            >
+              <AppBody>{children}</AppBody>
+            </AppShell>
+          </ChatProvider>
+        </ChatSessionProvider>
+      </ProjectDocumentsProvider>
     </ProjectProvider>
   );
 }

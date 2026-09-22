@@ -8,7 +8,8 @@ interface ProjectDocsPanelProps {
   documents: UploadedDocument[];
   isLoadingDocuments?: boolean;
   uploads: UploadState[];
-  onFiles: (files: FileList) => void;
+  onFiles: (files: File[]) => void;
+  onDelete: (filename: string) => Promise<void>;
 }
 
 export function ProjectDocsPanel({
@@ -16,6 +17,7 @@ export function ProjectDocsPanel({
   isLoadingDocuments,
   uploads,
   onFiles,
+  onDelete,
 }: ProjectDocsPanelProps) {
   // Uploads that just finished are already in `documents` too (it's reloaded after each one) -
   // only show ones still in flight or failed here, so a finished upload isn't listed twice.
@@ -42,7 +44,7 @@ export function ProjectDocsPanel({
       ) : documents.length > 0 ? (
         <ul className="flex max-h-64 flex-col gap-2 overflow-y-auto">
           {documents.map((document) => (
-            <IndexedDocItem key={document.filename} document={document} />
+            <IndexedDocItem key={document.filename} document={document} onDelete={onDelete} />
           ))}
         </ul>
       ) : (

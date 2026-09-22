@@ -1,6 +1,6 @@
 from fastapi import APIRouter, status
 
-from app.api.deps import OwnedProjectDep, ProjectServiceDep, SessionDep
+from app.api.deps import ChatSessionServiceDep, OwnedProjectDep, ProjectServiceDep, SessionDep
 from app.schemas.projects import (
     CreateProjectRequest,
     ProjectListResponse,
@@ -19,9 +19,14 @@ async def list_projects(username: SessionDep, service: ProjectServiceDep) -> Pro
 
 @router.post("", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
 async def create_project(
-    request: CreateProjectRequest, username: SessionDep, service: ProjectServiceDep
+    request: CreateProjectRequest,
+    username: SessionDep,
+    service: ProjectServiceDep,
+    sessions: ChatSessionServiceDep,
 ) -> ProjectResponse:
     project = await service.create_project(username, request.name)
+    # Every project starts with one conversation thread, so Ask mode always has somewhere to talk.
+    await sessions.create_session(username, project.id, "Session 1")
     return ProjectResponse.from_domain(project)
 
 

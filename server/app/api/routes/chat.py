@@ -3,8 +3,9 @@ from fastapi import APIRouter
 from app.api.deps import ChatServiceDep
 from app.schemas.chat import ChatHistoryResponse, ChatMessageResponse, ChatRequest, ChatResponse
 
-# ChatServiceDep depends on OwnedProjectDep itself, so resolving it already 404s an unowned project.
-router = APIRouter(prefix="/projects/{project_id}", tags=["chat"])
+# ChatServiceDep depends on OwnedSessionDep itself, so resolving it already 404s an unowned
+# project or a session that isn't one of that project's own.
+router = APIRouter(prefix="/projects/{project_id}/sessions/{session_id}", tags=["chat"])
 
 
 @router.post("/chat", response_model=ChatResponse)

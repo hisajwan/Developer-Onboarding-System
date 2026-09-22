@@ -75,6 +75,9 @@ class InMemoryRegistry:
     async def list_all(self, project_id: str) -> list[IndexedDocument]:
         return [doc for (pid, _), doc in self.documents.items() if pid == project_id]
 
+    async def delete(self, project_id: str, filename: str) -> bool:
+        return self.documents.pop((project_id, filename), None) is not None
+
 
 class InMemoryDocumentStore:
     def __init__(self) -> None:
@@ -86,6 +89,9 @@ class InMemoryDocumentStore:
 
     async def list_filenames(self, project_id: str) -> list[str]:
         return sorted(name for (pid, name) in self.files if pid == project_id)
+
+    async def delete(self, project_id: str, filename: str) -> bool:
+        return self.files.pop((project_id, filename), None) is not None
 
 
 async def index_texts(

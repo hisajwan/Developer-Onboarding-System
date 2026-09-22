@@ -2,6 +2,7 @@
 
 import { createContext, useContext, type ReactNode } from "react";
 import { useChat } from "@/hooks/useChat";
+import { useChatSessionContext } from "./ChatSessionProvider";
 import { useProjectContext } from "./ProjectProvider";
 
 type ChatContextValue = ReturnType<typeof useChat>;
@@ -10,12 +11,14 @@ const ChatContext = createContext<ChatContextValue | null>(null);
 
 /**
  * Holds Ask mode's chat state at the layout level, so it survives navigating to another screen
- * and back — a page component alone would remount and lose it. Scoped to whatever project
- * ProjectProvider says is current, and reloads that project's saved history on every switch.
+ * and back — a page component alone would remount and lose it. Scoped to whatever project and
+ * session ProjectProvider/ChatSessionProvider say are current, and reloads that session's saved
+ * history on every switch.
  */
 export function ChatProvider({ children }: { children: ReactNode }) {
   const { currentProjectId } = useProjectContext();
-  const chat = useChat(currentProjectId);
+  const { currentSessionId } = useChatSessionContext();
+  const chat = useChat(currentProjectId, currentSessionId);
   return <ChatContext.Provider value={chat}>{children}</ChatContext.Provider>;
 }
 

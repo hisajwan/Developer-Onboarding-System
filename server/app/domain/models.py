@@ -86,12 +86,25 @@ class Project:
     updated_at: datetime
 
 
+@dataclass(frozen=True, slots=True)
+class ChatSession:
+    """One conversation thread within a project. A project can have several; its documents and
+
+    retrieval are shared by all of them, only the conversation itself is separate.
+    """
+
+    id: str
+    project_id: str
+    name: str
+    created_at: datetime
+
+
 ChatRole = Literal["user", "assistant"]
 
 
 @dataclass(frozen=True, slots=True)
 class ChatMessage:
-    """One turn of a project's saved conversation, fed back to the agent as its memory."""
+    """One turn of a session's saved conversation, fed back to the agent as its memory."""
 
     role: ChatRole
     content: str
