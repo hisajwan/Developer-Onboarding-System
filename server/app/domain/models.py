@@ -72,6 +72,30 @@ class User:
     last_name: str
     email: str
     created_at: datetime
+    last_project_id: str | None = None  # restored as the active project on the next login
+
+
+@dataclass(frozen=True, slots=True)
+class Project:
+    """A workspace of documents and chat history. One owner, no membership or roles."""
+
+    id: str
+    owner_username: str
+    name: str
+    created_at: datetime
+    updated_at: datetime
+
+
+ChatRole = Literal["user", "assistant"]
+
+
+@dataclass(frozen=True, slots=True)
+class ChatMessage:
+    """One turn of a project's saved conversation, fed back to the agent as its memory."""
+
+    role: ChatRole
+    content: str
+    created_at: datetime
 
 
 @dataclass(frozen=True, slots=True)

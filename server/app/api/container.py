@@ -14,12 +14,14 @@ from app.agent.tools.retrieve_and_answer import RetrieveAndAnswerTool
 from app.core.config import Settings
 from app.domain.ports import (
     Agent,
+    ChatHistory,
     DocumentReader,
     DocumentRegistry,
     DocumentStore,
     Embedder,
     ImageCaptioner,
     LLMClient,
+    ProjectRegistry,
     UserRegistry,
     VectorStore,
 )
@@ -29,10 +31,13 @@ from app.infrastructure.documents.readers import FileReader
 from app.infrastructure.embeddings.registry import create_embedder
 from app.infrastructure.llm.registry import create_llm_client
 from app.infrastructure.storage.disk_documents import DiskDocumentStore
+from app.infrastructure.storage.sqlite_chat_history import SqliteChatHistory
+from app.infrastructure.storage.sqlite_project_registry import SqliteProjectRegistry
 from app.infrastructure.storage.sqlite_registry import SqliteDocumentRegistry
 from app.infrastructure.storage.sqlite_user_registry import SqliteUserRegistry
 from app.infrastructure.vectorstore.chroma_store import ChromaVectorStore
 from app.services.ingestion_service import IngestionService
+from app.services.project_service import ProjectService
 
 
 class Container:
@@ -72,6 +77,18 @@ class Container:
         return SqliteUserRegistry(self._settings.database_path)
 
     @cached_property
+    def project_registry(self) -> ProjectRegistry:
+        return SqliteProjectRegistry(self._settings.database_path)
+
+    @cached_property
+    def chat_history(self) -> ChatHistory:
+        return SqliteChatHistory(self._settings.database_path)
+
+    @cached_property
+    def project_service(self) -> ProjectService:
+        return ProjectService(self.user_registry, self.project_registry)
+
+    @cached_property
     def document_reader(self) -> DocumentReader:
         return FileReader(
             min_image_dimension_px=self._settings.min_image_dimension_px,
@@ -92,16 +109,17 @@ class Container:
             chunk_overlap_tokens=self._settings.chunk_overlap_tokens,
         )
 
-    @cached_property
-    def retrieve_and_answer_tool(self) -> RetrieveAndAnswerTool:
+    def retrieve_and_answer_tool_for(self, project_id: str) -> RetrieveAndAnswerTool:
         return RetrieveAndAnswerTool(
-            self.embedder, self.vector_store, self.llm_client, top_k=self._settings.retrieval_top_k
+            self.embedder,
+            self.vector_store,
+            self.llm_client,
+            project_id,
+            top_k=self._settings.retrieval_top_k,
         )
 
-    @cached_property
-    def tool_registry(self) -> ToolRegistry:
-        return ToolRegistry([self.retrieve_and_answer_tool])
+    def tool_registry_for(self, project_id: str) -> ToolRegistry:
+        return ToolRegistry([self.retrieve_and_answer_tool_for(project_id)])
 
-    @cached_property
-    def agent(self) -> Agent:
-        return LangChainAgent(self.tool_registry, self.chat_model)
+    def agent_for(self, project_id: str) -> Agent:
+        return LangChainAgent(self.tool_registry_for(project_id), self.chat_model)

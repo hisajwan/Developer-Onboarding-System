@@ -1,5 +1,6 @@
 export interface Session {
   username: string;
+  last_project_id: string | null;
 }
 
 export interface SignupFields {

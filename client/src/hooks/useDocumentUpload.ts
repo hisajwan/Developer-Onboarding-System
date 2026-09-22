@@ -9,45 +9,50 @@ function pluralChunks(count: number): string {
   return `${count} chunk${count === 1 ? "" : "s"}`;
 }
 
-export function useDocumentUpload() {
+/** `null` while no project is selected yet - uploading is a no-op until one exists. */
+export function useDocumentUpload(projectId: string | null) {
   const [uploads, setUploads] = useState<UploadState[]>([]);
 
-  const upload = useCallback(async (files: FileList) => {
-    // One at a time: keeps status updates predictable and avoids bursting the backend.
-    for (const file of Array.from(files)) {
-      const id = crypto.randomUUID();
-      setUploads((current) => [...current, { id, filename: file.name, status: "uploading" }]);
-      try {
-        const response = await uploadDocument(file);
-        setUploads((current) =>
-          current.map((item) =>
-            item.id === id
-              ? {
-                  ...item,
-                  status: response.status,
-                  message:
-                    response.status === "indexed"
-                      ? pluralChunks(response.document.chunk_count)
-                      : undefined,
-                }
-              : item,
-          ),
-        );
-      } catch (err) {
-        setUploads((current) =>
-          current.map((item) =>
-            item.id === id
-              ? {
-                  ...item,
-                  status: "error",
-                  message: err instanceof ApiError ? err.message : "Upload failed.",
-                }
-              : item,
-          ),
-        );
+  const upload = useCallback(
+    async (files: FileList) => {
+      if (!projectId) return;
+      // One at a time: keeps status updates predictable and avoids bursting the backend.
+      for (const file of Array.from(files)) {
+        const id = crypto.randomUUID();
+        setUploads((current) => [...current, { id, filename: file.name, status: "uploading" }]);
+        try {
+          const response = await uploadDocument(projectId, file);
+          setUploads((current) =>
+            current.map((item) =>
+              item.id === id
+                ? {
+                    ...item,
+                    status: response.status,
+                    message:
+                      response.status === "indexed"
+                        ? pluralChunks(response.document.chunk_count)
+                        : undefined,
+                  }
+                : item,
+            ),
+          );
+        } catch (err) {
+          setUploads((current) =>
+            current.map((item) =>
+              item.id === id
+                ? {
+                    ...item,
+                    status: "error",
+                    message: err instanceof ApiError ? err.message : "Upload failed.",
+                  }
+                : item,
+            ),
+          );
+        }
       }
-    }
-  }, []);
+    },
+    [projectId],
+  );
 
   return { uploads, upload };
 }

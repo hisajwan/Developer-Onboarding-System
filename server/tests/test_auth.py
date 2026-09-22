@@ -32,7 +32,7 @@ def error_code(response) -> str:
 
 
 def test_protected_endpoint_requires_login(client: TestClient) -> None:
-    response = client.post("/api/v1/chat", json={"message": "hello"})
+    response = client.get("/api/v1/projects")
 
     assert response.status_code == 401
     assert error_code(response) == "not_authenticated"
@@ -48,7 +48,7 @@ def test_login_sets_an_httponly_session_cookie_and_keeps_the_token_out_of_the_bo
     response = login(client)
 
     assert response.status_code == 200
-    assert response.json() == {"username": USERNAME}
+    assert response.json() == {"username": USERNAME, "last_project_id": None}
     cookie = response.headers["set-cookie"]
     assert cookie.startswith(f"{SESSION_COOKIE}=")
     assert "HttpOnly" in cookie
@@ -60,12 +60,12 @@ def test_signup_creates_an_account_and_logs_it_in(client: TestClient) -> None:
     response = signup(client)
 
     assert response.status_code == 201
-    assert response.json() == {"username": "ada"}
+    assert response.json() == {"username": "ada", "last_project_id": None}
     cookie = response.headers["set-cookie"]
     assert cookie.startswith(f"{SESSION_COOKIE}=")
     assert "HttpOnly" in cookie
 
-    assert client.get("/api/v1/session").json() == {"username": "ada"}
+    assert client.get("/api/v1/session").json() == {"username": "ada", "last_project_id": None}
 
 
 def test_signup_then_login_with_the_new_password_works(client: TestClient) -> None:
@@ -105,8 +105,11 @@ def test_signup_rejects_a_blank_name(client: TestClient) -> None:
     assert signup(client, first_name="").status_code == 422
 
 
-def test_logged_in_client_can_use_protected_endpoints(auth_client: TestClient) -> None:
-    assert auth_client.post("/api/v1/chat", json={"message": "hello"}).status_code == 200
+def test_logged_in_client_can_use_protected_endpoints(
+    auth_client: TestClient, project_id: str
+) -> None:
+    response = auth_client.post(f"/api/v1/projects/{project_id}/chat", json={"message": "hello"})
+    assert response.status_code == 200
 
 
 def test_session_endpoint_reports_the_user_only_when_logged_in(client: TestClient) -> None:
@@ -114,7 +117,7 @@ def test_session_endpoint_reports_the_user_only_when_logged_in(client: TestClien
 
     login(client)
 
-    assert client.get("/api/v1/session").json() == {"username": USERNAME}
+    assert client.get("/api/v1/session").json() == {"username": USERNAME, "last_project_id": None}
 
 
 def test_wrong_password_is_rejected_without_a_cookie(client: TestClient) -> None:
@@ -133,10 +136,11 @@ def test_wrong_username_gets_the_same_answer_as_a_wrong_password(client: TestCli
     assert wrong_user.json() == wrong_password.json()
 
 
-def test_logout_ends_the_session(auth_client: TestClient) -> None:
+def test_logout_ends_the_session(auth_client: TestClient, project_id: str) -> None:
     assert auth_client.post("/api/v1/logout").status_code == 204
 
-    assert auth_client.post("/api/v1/chat", json={"message": "hello"}).status_code == 401
+    response = auth_client.post(f"/api/v1/projects/{project_id}/chat", json={"message": "hello"})
+    assert response.status_code == 401
 
 
 def test_empty_credentials_are_a_validation_error(client: TestClient) -> None:
@@ -170,7 +174,7 @@ def test_login_reports_missing_configuration_instead_of_letting_anyone_in() -> N
 
     assert response.status_code == 500
     assert error_code(response) == "configuration_error"
-    assert unconfigured.post("/api/v1/chat", json={"message": "hello"}).status_code == 500
+    assert unconfigured.get("/api/v1/projects").status_code == 500
 
 
 def test_a_blank_signing_secret_is_treated_as_not_configured(tmp_path: Path) -> None:

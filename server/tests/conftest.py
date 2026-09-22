@@ -2,14 +2,16 @@ import asyncio
 import secrets
 from datetime import UTC, datetime
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
 from app.core.config import Settings
-from app.domain.models import User
+from app.domain.models import Project, User
 from app.infrastructure.auth.passwords import hash_password
+from app.infrastructure.storage.sqlite_project_registry import SqliteProjectRegistry
 from app.infrastructure.storage.sqlite_user_registry import SqliteUserRegistry
 from app.main import create_app
 
@@ -17,6 +19,7 @@ from app.main import create_app
 USERNAME = "dev"
 PASSWORD = secrets.token_urlsafe(12)
 SECRET = secrets.token_urlsafe(32)
+PROJECT_NAME = "Test Project"
 
 
 def seed_user(settings: Settings, username: str = USERNAME, password: str = PASSWORD) -> None:
@@ -32,6 +35,18 @@ def seed_user(settings: Settings, username: str = USERNAME, password: str = PASS
     asyncio.run(SqliteUserRegistry(settings.database_path).record(user))
 
 
+def seed_project(
+    settings: Settings, owner_username: str = USERNAME, name: str = PROJECT_NAME
+) -> Project:
+    """Puts a project straight into the settings' own projects table, bypassing HTTP."""
+    now = datetime.now(UTC)
+    project = Project(
+        id=str(uuid4()), owner_username=owner_username, name=name, created_at=now, updated_at=now
+    )
+    asyncio.run(SqliteProjectRegistry(settings.database_path).create(project))
+    return project
+
+
 @pytest.fixture
 def settings(tmp_path: Path) -> Settings:
     settings = Settings(
@@ -42,6 +57,17 @@ def settings(tmp_path: Path) -> Settings:
     )
     seed_user(settings)
     return settings
+
+
+@pytest.fixture
+def project(settings: Settings) -> Project:
+    """A project already owned by the seeded user, for tests of anything project-scoped."""
+    return seed_project(settings)
+
+
+@pytest.fixture
+def project_id(project: Project) -> str:
+    return project.id
 
 
 @pytest.fixture
@@ -64,8 +90,11 @@ def make_client(settings: Settings):
 
 
 @pytest.fixture
-def auth_client(client: TestClient) -> TestClient:
-    """Logged in: the session cookie from a real /login is kept by the client."""
+def auth_client(client: TestClient, project: Project) -> TestClient:
+    """Logged in, with one project already created: the session cookie from a real /login is kept
+
+    by the client.
+    """
     response = client.post("/api/v1/login", json={"username": USERNAME, "password": PASSWORD})
     assert response.status_code == 200
     return client

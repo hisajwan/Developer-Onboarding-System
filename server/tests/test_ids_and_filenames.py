@@ -6,10 +6,13 @@ from app.ingestion.filenames import safe_filename
 from app.ingestion.ids import chunk_id, content_hash
 
 BASE = Chunk(text="Install it.", source="setup.md", index=0)
+PROJECT = "proj-1"
 
 
 def test_chunk_id_is_stable() -> None:
-    assert chunk_id("model-a", BASE) == chunk_id("model-a", Chunk("Install it.", "setup.md", 0))
+    assert chunk_id("model-a", PROJECT, BASE) == chunk_id(
+        "model-a", PROJECT, Chunk("Install it.", "setup.md", 0)
+    )
 
 
 @pytest.mark.parametrize(
@@ -22,15 +25,19 @@ def test_chunk_id_is_stable() -> None:
     ],
 )
 def test_chunk_id_changes_when_any_part_changes(changed: Chunk) -> None:
-    assert chunk_id("model-a", changed) != chunk_id("model-a", BASE)
+    assert chunk_id("model-a", PROJECT, changed) != chunk_id("model-a", PROJECT, BASE)
 
 
 def test_chunk_id_changes_with_the_embedding_model() -> None:
-    assert chunk_id("model-a", BASE) != chunk_id("model-b", BASE)
+    assert chunk_id("model-a", PROJECT, BASE) != chunk_id("model-b", PROJECT, BASE)
+
+
+def test_chunk_id_changes_with_the_project() -> None:
+    assert chunk_id("model-a", "proj-1", BASE) != chunk_id("model-a", "proj-2", BASE)
 
 
 def test_neighbouring_parts_cannot_be_confused() -> None:
-    assert chunk_id("m", Chunk("bc", "a", 0)) != chunk_id("m", Chunk("c", "ab", 0))
+    assert chunk_id("m", "p", Chunk("bc", "a", 0)) != chunk_id("m", "p", Chunk("c", "ab", 0))
 
 
 def test_content_hash_depends_on_the_bytes_only() -> None:

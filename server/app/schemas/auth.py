@@ -19,3 +19,4 @@ class SignupRequest(BaseModel):
 
 class SessionResponse(BaseModel):
     username: str
+    last_project_id: str | None = None

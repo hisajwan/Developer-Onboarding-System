@@ -4,15 +4,16 @@ from typing import Annotated
 
 from fastapi import Depends, Request
 
-from app.agent.tools.registry import ToolRegistry
 from app.api.container import Container
 from app.api.session_cookie import SESSION_COOKIE
 from app.core.config import Settings
+from app.domain.models import Project
 from app.domain.ports import Agent
 from app.infrastructure.auth.jwt_tokens import JwtSessionTokens
 from app.services.auth_service import AuthService
 from app.services.chat_service import ChatService
 from app.services.ingestion_service import IngestionService
+from app.services.project_service import ProjectService
 
 
 def get_app_settings(request: Request) -> Settings:
@@ -27,21 +28,6 @@ def get_container(request: Request) -> Container:
 
 
 ContainerDep = Annotated[Container, Depends(get_container)]
-
-
-def get_tool_registry(container: ContainerDep) -> ToolRegistry:
-    return container.tool_registry
-
-
-def get_agent(container: ContainerDep) -> Agent:
-    return container.agent
-
-
-def get_chat_service(agent: Annotated[Agent, Depends(get_agent)]) -> ChatService:
-    return ChatService(agent)
-
-
-ChatServiceDep = Annotated[ChatService, Depends(get_chat_service)]
 
 
 def get_ingestion_service(container: ContainerDep) -> IngestionService:
@@ -67,3 +53,36 @@ def require_session(request: Request, auth: AuthServiceDep) -> str:
 
 
 SessionDep = Annotated[str, Depends(require_session)]
+
+
+def get_project_service(container: ContainerDep) -> ProjectService:
+    return container.project_service
+
+
+ProjectServiceDep = Annotated[ProjectService, Depends(get_project_service)]
+
+
+async def require_owned_project(
+    project_id: str, username: SessionDep, service: ProjectServiceDep
+) -> Project:
+    """Route dependency for any `/projects/{project_id}/...` route: the project, already confirmed
+
+    to belong to the current user (a 404, not a 403, if it doesn't - see ProjectService).
+    """
+    return await service.get_owned_project(username, project_id)
+
+
+OwnedProjectDep = Annotated[Project, Depends(require_owned_project)]
+
+
+def get_agent(project: OwnedProjectDep, container: ContainerDep) -> Agent:
+    return container.agent_for(project.id)
+
+
+def get_chat_service(
+    agent: Annotated[Agent, Depends(get_agent)], project: OwnedProjectDep, container: ContainerDep
+) -> ChatService:
+    return ChatService(agent, container.chat_history, project.id)
+
+
+ChatServiceDep = Annotated[ChatService, Depends(get_chat_service)]

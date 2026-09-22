@@ -20,62 +20,77 @@ def make_image(width: int = 64, height: int = 64, *, format: str = "PNG") -> byt
 class InMemoryVectorStore:
     def __init__(self) -> None:
         self.records: dict[str, ChunkRecord] = {}
+        self.projects: dict[str, str] = {}  # chunk id -> project id
 
     def ids_for(self, source: str) -> set[str]:
         return {id_ for id_, record in self.records.items() if record.chunk.source == source}
 
-    async def existing_ids(self, ids: list[str]) -> set[str]:
-        return {id_ for id_ in ids if id_ in self.records}
+    async def existing_ids(self, project_id: str, ids: list[str]) -> set[str]:
+        return {id_ for id_ in ids if id_ in self.records and self.projects[id_] == project_id}
 
-    async def upsert(self, records: list[ChunkRecord]) -> None:
+    async def upsert(self, project_id: str, records: list[ChunkRecord]) -> None:
         for record in records:
             self.records[record.id] = record
+            self.projects[record.id] = project_id
 
-    async def remove_stale(self, source: str, keep_ids: set[str]) -> None:
+    async def remove_stale(self, project_id: str, source: str, keep_ids: set[str]) -> None:
         for id_ in self.ids_for(source) - keep_ids:
-            del self.records[id_]
+            if self.projects[id_] == project_id:
+                del self.records[id_]
+                del self.projects[id_]
 
-    async def search(self, query_embedding: list[float], top_k: int) -> list[RetrievedChunk]:
+    async def search(
+        self, project_id: str, query_embedding: list[float], top_k: int
+    ) -> list[RetrievedChunk]:
         scored = [
             RetrievedChunk(
                 record.chunk,
                 sum(a * b for a, b in zip(query_embedding, record.embedding, strict=True)),
             )
-            for record in self.records.values()
+            for id_, record in self.records.items()
+            if self.projects[id_] == project_id
         ]
         return sorted(scored, key=lambda item: item.score, reverse=True)[:top_k]
 
-    async def count_documents(self) -> int:
-        return len({record.chunk.source for record in self.records.values()})
+    async def count_documents(self, project_id: str) -> int:
+        return len(
+            {
+                record.chunk.source
+                for id_, record in self.records.items()
+                if self.projects[id_] == project_id
+            }
+        )
 
 
 class InMemoryRegistry:
     def __init__(self) -> None:
-        self.documents: dict[str, IndexedDocument] = {}
+        self.documents: dict[tuple[str, str], IndexedDocument] = {}
 
-    async def get(self, filename: str) -> IndexedDocument | None:
-        return self.documents.get(filename)
+    async def get(self, project_id: str, filename: str) -> IndexedDocument | None:
+        return self.documents.get((project_id, filename))
 
-    async def record(self, document: IndexedDocument) -> None:
-        self.documents[document.filename] = document
+    async def record(self, project_id: str, document: IndexedDocument) -> None:
+        self.documents[(project_id, document.filename)] = document
 
-    async def list_all(self) -> list[IndexedDocument]:
-        return list(self.documents.values())
+    async def list_all(self, project_id: str) -> list[IndexedDocument]:
+        return [doc for (pid, _), doc in self.documents.items() if pid == project_id]
 
 
 class InMemoryDocumentStore:
     def __init__(self) -> None:
-        self.files: dict[str, bytes] = {}
+        self.files: dict[tuple[str, str], bytes] = {}
 
-    async def save(self, filename: str, content: bytes) -> str:
-        self.files[filename] = content
-        return f"memory://{filename}"
+    async def save(self, project_id: str, filename: str, content: bytes) -> str:
+        self.files[(project_id, filename)] = content
+        return f"memory://{project_id}/{filename}"
 
-    async def list_filenames(self) -> list[str]:
-        return sorted(self.files)
+    async def list_filenames(self, project_id: str) -> list[str]:
+        return sorted(name for (pid, name) in self.files if pid == project_id)
 
 
-async def index_texts(vectors, embedder, entries: list[tuple]) -> None:
+async def index_texts(
+    vectors, embedder, entries: list[tuple], project_id: str = "test-project"
+) -> None:
     """Embed and store plain texts directly, for tests of things built on top of a vector store,
 
     without going through the full ingestion pipeline. Each entry is
@@ -92,7 +107,7 @@ async def index_texts(vectors, embedder, entries: list[tuple]) -> None:
         )
         embedding = await embedder.embed_query(text)
         records.append(ChunkRecord(f"test-chunk-{position}", chunk, embedding))
-    await vectors.upsert(records)
+    await vectors.upsert(project_id, records)
 
 
 def make_pdf_with_image(width: int, height: int, *, mode: str = "L", text: str = "") -> bytes:

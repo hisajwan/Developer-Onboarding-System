@@ -1,10 +1,12 @@
 import { redirect } from "next/navigation";
+import { ProjectSwitcher } from "@/components/organisms/ProjectSwitcher";
 import { SidebarNav } from "@/components/organisms/SidebarNav";
 import { AppShell } from "@/components/templates/AppShell";
 import { NAV_ENTRIES } from "@/config/navigation";
 import { getSession } from "@/lib/api/session";
 import { AskDocsSidebar } from "./AskDocsSidebar";
 import { ChatProvider } from "./ChatProvider";
+import { ProjectProvider } from "./ProjectProvider";
 import { SessionFooter } from "./SessionFooter";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
@@ -12,14 +14,17 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   if (!session) redirect("/login");
 
   return (
-    <ChatProvider>
-      <AppShell
-        sidebar={<SidebarNav entries={NAV_ENTRIES} />}
-        sidebarExtra={<AskDocsSidebar />}
-        sidebarFooter={<SessionFooter username={session.username} />}
-      >
-        {children}
-      </AppShell>
-    </ChatProvider>
+    <ProjectProvider initialProjectId={session.last_project_id}>
+      <ChatProvider>
+        <AppShell
+          sidebarTop={<ProjectSwitcher />}
+          sidebar={<SidebarNav entries={NAV_ENTRIES} />}
+          sidebarExtra={<AskDocsSidebar />}
+          sidebarFooter={<SessionFooter username={session.username} />}
+        >
+          {children}
+        </AppShell>
+      </ChatProvider>
+    </ProjectProvider>
   );
 }

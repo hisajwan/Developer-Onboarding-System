@@ -22,17 +22,24 @@ class RetrieveAndAnswerTool:
     )
 
     def __init__(
-        self, embedder: Embedder, vectors: VectorStore, llm: LLMClient, *, top_k: int
+        self,
+        embedder: Embedder,
+        vectors: VectorStore,
+        llm: LLMClient,
+        project_id: str,
+        *,
+        top_k: int,
     ) -> None:
         self._embedder = embedder
         self._vectors = vectors
         self._llm = llm
+        self._project_id = project_id
         self._top_k = top_k
 
     async def run(self, input_text: str) -> ToolResult:
         question = input_text.strip()
         query_embedding = await self._embedder.embed_query(question)
-        retrieved = await self._vectors.search(query_embedding, top_k=self._top_k)
+        retrieved = await self._vectors.search(self._project_id, query_embedding, top_k=self._top_k)
         if not retrieved:
             return ToolResult(content=NO_MATCH_MESSAGE)
 

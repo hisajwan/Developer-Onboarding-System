@@ -6,6 +6,8 @@ from app.infrastructure.embeddings.fake import FakeEmbedder
 from app.infrastructure.llm.fake import FakeLLMClient
 from tests.helpers import InMemoryVectorStore, index_texts
 
+PROJECT_ID = "test-project"  # matches index_texts' own default
+
 
 @pytest.fixture
 def vectors() -> InMemoryVectorStore:
@@ -26,7 +28,7 @@ def llm() -> FakeLLMClient:
 def tool(
     embedder: FakeEmbedder, vectors: InMemoryVectorStore, llm: FakeLLMClient
 ) -> RetrieveAndAnswerTool:
-    return RetrieveAndAnswerTool(embedder, vectors, llm, top_k=2)
+    return RetrieveAndAnswerTool(embedder, vectors, llm, PROJECT_ID, top_k=2)
 
 
 def test_satisfies_the_tool_port(tool: RetrieveAndAnswerTool) -> None:
@@ -86,7 +88,7 @@ async def test_only_top_k_chunks_are_sent_as_context(
         embedder,
         [(f"doc{i}.md", "dev environment setup guide", i) for i in range(5)],
     )
-    tool = RetrieveAndAnswerTool(embedder, vectors, llm, top_k=2)
+    tool = RetrieveAndAnswerTool(embedder, vectors, llm, PROJECT_ID, top_k=2)
 
     result = await tool.run("dev environment setup")
 
