@@ -10,6 +10,10 @@ export interface UploadResponse {
   chunks_embedded: number;
 }
 
+export interface DocumentListResponse {
+  documents: UploadedDocument[];
+}
+
 export interface UploadState {
   id: string;
   filename: string;

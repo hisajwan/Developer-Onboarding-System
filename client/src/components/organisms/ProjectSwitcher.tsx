@@ -34,24 +34,27 @@ export function ProjectSwitcher() {
     return <p className="px-1 text-xs text-muted">Loading projects…</p>;
   }
 
+  // The first project is created together with its first document, in the main panel that
+  // replaces the whole app until one exists (see CreateFirstProjectPanel) - nothing to switch or
+  // add here yet.
+  if (projects.length === 0) return null;
+
   return (
     <div className="flex flex-col gap-2 px-1">
-      {projects.length > 0 && (
-        <label className="flex flex-col gap-1 text-xs font-medium">
-          Project
-          <select
-            value={currentProjectId ?? ""}
-            onChange={(event) => selectProject(event.target.value)}
-            className="w-full rounded-md border border-border bg-canvas px-2 py-1.5 text-sm outline-none focus:border-primary"
-          >
-            {projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
+      <label className="flex flex-col gap-1 text-xs font-medium">
+        Project
+        <select
+          value={currentProjectId ?? ""}
+          onChange={(event) => selectProject(event.target.value)}
+          className="w-full rounded-md border border-border bg-canvas px-2 py-1.5 text-sm outline-none focus:border-primary"
+        >
+          {projects.map((project) => (
+            <option key={project.id} value={project.id}>
+              {project.name}
+            </option>
+          ))}
+        </select>
+      </label>
       {isCreating ? (
         <form onSubmit={handleCreate} className="flex flex-col gap-1.5">
           <TextInput

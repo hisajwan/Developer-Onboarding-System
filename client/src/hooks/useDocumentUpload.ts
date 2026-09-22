@@ -3,11 +3,8 @@
 import { useCallback, useState } from "react";
 import { uploadDocument } from "@/lib/api/documents";
 import { ApiError } from "@/lib/api/http";
+import { pluralChunks } from "@/lib/format";
 import type { UploadState } from "@/types/document";
-
-function pluralChunks(count: number): string {
-  return `${count} chunk${count === 1 ? "" : "s"}`;
-}
 
 /** `null` while no project is selected yet - uploading is a no-op until one exists. */
 export function useDocumentUpload(projectId: string | null) {
