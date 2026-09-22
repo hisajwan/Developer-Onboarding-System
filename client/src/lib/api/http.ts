@@ -27,9 +27,11 @@ export async function apiFetch<T>(
   path: string,
   { redirectOnUnauthorized = true, ...init }: ApiFetchInit = {},
 ): Promise<T> {
+  // A FormData body needs the browser to set its own multipart boundary; don't force JSON on it.
+  const isFormData = init.body instanceof FormData;
   const response = await fetch(`${BASE_PATH}${path}`, {
     ...init,
-    headers: { "Content-Type": "application/json", ...init.headers },
+    headers: isFormData ? init.headers : { "Content-Type": "application/json", ...init.headers },
   });
   if (!response.ok) {
     if (response.status === 401 && redirectOnUnauthorized) {
