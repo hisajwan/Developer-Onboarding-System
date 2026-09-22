@@ -1,4 +1,5 @@
 from datetime import timedelta
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
@@ -7,11 +8,23 @@ from app.api.session_cookie import SESSION_COOKIE
 from app.core.config import Settings
 from app.infrastructure.auth.jwt_tokens import JwtSessionTokens
 from app.main import create_app
-from tests.conftest import PASSWORD, SECRET, USERNAME
+from tests.conftest import PASSWORD, SECRET, USERNAME, seed_user
 
 
 def login(client: TestClient, username: str = USERNAME, password: str = PASSWORD):
     return client.post("/api/v1/login", json={"username": username, "password": password})
+
+
+def signup(client: TestClient, **overrides):
+    body = {
+        "first_name": "Ada",
+        "last_name": "Lovelace",
+        "email": "ada@example.com",
+        "username": "ada",
+        "password": "s3cret-pass",
+        **overrides,
+    }
+    return client.post("/api/v1/signup", json=body)
 
 
 def error_code(response) -> str:
@@ -41,6 +54,55 @@ def test_login_sets_an_httponly_session_cookie_and_keeps_the_token_out_of_the_bo
     assert "HttpOnly" in cookie
     assert "SameSite=lax" in cookie
     assert client.cookies[SESSION_COOKIE] not in response.text
+
+
+def test_signup_creates_an_account_and_logs_it_in(client: TestClient) -> None:
+    response = signup(client)
+
+    assert response.status_code == 201
+    assert response.json() == {"username": "ada"}
+    cookie = response.headers["set-cookie"]
+    assert cookie.startswith(f"{SESSION_COOKIE}=")
+    assert "HttpOnly" in cookie
+
+    assert client.get("/api/v1/session").json() == {"username": "ada"}
+
+
+def test_signup_then_login_with_the_new_password_works(client: TestClient) -> None:
+    signup(client)
+    client.cookies.clear()
+
+    response = login(client, username="ada", password="s3cret-pass")
+
+    assert response.status_code == 200
+
+
+def test_signup_rejects_a_username_that_is_already_taken(client: TestClient) -> None:
+    response = signup(client, username=USERNAME, email="someone-else@example.com")
+
+    assert response.status_code == 409
+    assert error_code(response) == "account_already_exists"
+
+
+def test_signup_rejects_an_email_that_is_already_registered(client: TestClient) -> None:
+    signup(client)
+
+    response = signup(client, username="someone-else")
+
+    assert response.status_code == 409
+    assert error_code(response) == "account_already_exists"
+
+
+def test_signup_rejects_a_short_password(client: TestClient) -> None:
+    assert signup(client, password="short").status_code == 422
+
+
+def test_signup_rejects_a_malformed_email(client: TestClient) -> None:
+    assert signup(client, email="not-an-email").status_code == 422
+
+
+def test_signup_rejects_a_blank_name(client: TestClient) -> None:
+    assert signup(client, first_name="").status_code == 422
 
 
 def test_logged_in_client_can_use_protected_endpoints(auth_client: TestClient) -> None:
@@ -111,35 +173,31 @@ def test_login_reports_missing_configuration_instead_of_letting_anyone_in() -> N
     assert unconfigured.post("/api/v1/chat", json={"message": "hello"}).status_code == 500
 
 
-def test_blank_credentials_are_treated_as_not_configured_not_as_a_real_empty_login() -> None:
-    """AUTH_USERNAME= / AUTH_PASSWORD= in .env are present but blank, not absent; the app must
+def test_a_blank_signing_secret_is_treated_as_not_configured(tmp_path: Path) -> None:
+    """AUTH_SECRET= in .env is present but blank, not absent; the app must still refuse to start
 
-    still refuse to start login rather than accept an empty username and password as valid.
+    login rather than sign tokens with an empty, guessable secret.
     """
     settings = Settings(
-        environment="test",
-        auth_username="   ",
-        auth_password=SecretStr("   "),
-        auth_secret=SecretStr(SECRET),
-        _env_file=None,
+        environment="test", data_dir=tmp_path / "data", auth_secret=SecretStr("   "), _env_file=None
     )
+    seed_user(settings)
     blank = TestClient(create_app(settings))
 
-    # Non-blank request credentials: this must fail as unconfigured, not as a wrong-password 401.
-    response = login(blank, username="admin", password="admin")
+    response = login(blank)
 
     assert response.status_code == 500
     assert error_code(response) == "configuration_error"
 
 
-def test_cookie_is_secure_in_production() -> None:
+def test_cookie_is_secure_in_production(tmp_path: Path) -> None:
     settings = Settings(
         environment="production",
-        auth_username=USERNAME,
-        auth_password=SecretStr(PASSWORD),
+        data_dir=tmp_path / "data",
         auth_secret=SecretStr(SECRET),
         _env_file=None,
     )
+    seed_user(settings)
 
     response = login(TestClient(create_app(settings), base_url="https://testserver"))
 

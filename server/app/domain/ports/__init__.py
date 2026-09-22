@@ -9,6 +9,7 @@ from app.domain.ports.image_captioner import ImageCaptioner
 from app.domain.ports.llm import LLMClient
 from app.domain.ports.session_tokens import SessionTokens
 from app.domain.ports.tool import Tool
+from app.domain.ports.user_registry import UserRegistry
 from app.domain.ports.vector_store import VectorStore
 
 __all__ = [
@@ -21,5 +22,6 @@ __all__ = [
     "LLMClient",
     "SessionTokens",
     "Tool",
+    "UserRegistry",
     "VectorStore",
 ]

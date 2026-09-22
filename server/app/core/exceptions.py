@@ -30,6 +30,11 @@ class InvalidCredentialsError(AppError):
     code = "invalid_credentials"
 
 
+class AccountAlreadyExistsError(AppError):
+    status_code = 409
+    code = "account_already_exists"
+
+
 class InvalidDocumentError(AppError):
     status_code = 422
     code = "invalid_document"

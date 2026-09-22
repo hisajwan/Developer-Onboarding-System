@@ -2,9 +2,27 @@ from fastapi import APIRouter, Response, status
 
 from app.api.deps import AuthServiceDep, SessionDep, SettingsDep
 from app.api.session_cookie import clear_session_cookie, set_session_cookie
-from app.schemas.auth import LoginRequest, SessionResponse
+from app.schemas.auth import LoginRequest, SessionResponse, SignupRequest
 
 router = APIRouter(tags=["auth"])
+
+
+@router.post("/signup", response_model=SessionResponse, status_code=status.HTTP_201_CREATED)
+async def signup(
+    request: SignupRequest,
+    response: Response,
+    service: AuthServiceDep,
+    settings: SettingsDep,
+) -> SessionResponse:
+    token = await service.signup(
+        first_name=request.first_name,
+        last_name=request.last_name,
+        email=request.email,
+        username=request.username,
+        password=request.password,
+    )
+    set_session_cookie(response, token, settings)
+    return SessionResponse(username=service.authenticate(token))
 
 
 @router.post("/login", response_model=SessionResponse)
@@ -14,9 +32,9 @@ async def login(
     service: AuthServiceDep,
     settings: SettingsDep,
 ) -> SessionResponse:
-    token = service.login(request.username, request.password)
+    token = await service.login(request.username, request.password)
     set_session_cookie(response, token, settings)
-    return SessionResponse(username=request.username)
+    return SessionResponse(username=service.authenticate(token))
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

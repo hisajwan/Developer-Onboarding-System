@@ -1,10 +1,18 @@
-import type { Session } from "@/types/auth";
+import type { Session, SignupFields } from "@/types/auth";
 import { apiFetch } from "./http";
 
 export function login(username: string, password: string): Promise<Session> {
   return apiFetch<Session>("/login", {
     method: "POST",
     body: JSON.stringify({ username, password }),
+    redirectOnUnauthorized: false,
+  });
+}
+
+export function signup(fields: SignupFields): Promise<Session> {
+  return apiFetch<Session>("/signup", {
+    method: "POST",
+    body: JSON.stringify(fields),
     redirectOnUnauthorized: false,
   });
 }

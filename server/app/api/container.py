@@ -20,6 +20,7 @@ from app.domain.ports import (
     Embedder,
     ImageCaptioner,
     LLMClient,
+    UserRegistry,
     VectorStore,
 )
 from app.infrastructure.captioning.registry import create_captioner
@@ -29,6 +30,7 @@ from app.infrastructure.embeddings.registry import create_embedder
 from app.infrastructure.llm.registry import create_llm_client
 from app.infrastructure.storage.disk_documents import DiskDocumentStore
 from app.infrastructure.storage.sqlite_registry import SqliteDocumentRegistry
+from app.infrastructure.storage.sqlite_user_registry import SqliteUserRegistry
 from app.infrastructure.vectorstore.chroma_store import ChromaVectorStore
 from app.services.ingestion_service import IngestionService
 
@@ -64,6 +66,10 @@ class Container:
     @cached_property
     def document_store(self) -> DocumentStore:
         return DiskDocumentStore(self._settings.docs_dir)
+
+    @cached_property
+    def user_registry(self) -> UserRegistry:
+        return SqliteUserRegistry(self._settings.database_path)
 
     @cached_property
     def document_reader(self) -> DocumentReader:

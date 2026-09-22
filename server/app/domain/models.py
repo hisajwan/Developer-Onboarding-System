@@ -63,6 +63,18 @@ class IngestionResult:
 
 
 @dataclass(frozen=True, slots=True)
+class User:
+    """A login account, created via `POST /signup` or the seed script (`scripts/create_user.py`)."""
+
+    username: str
+    password_hash: str
+    first_name: str
+    last_name: str
+    email: str
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
 class ToolResult:
     content: str
     sources: tuple[str, ...] = ()
