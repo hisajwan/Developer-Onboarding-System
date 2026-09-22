@@ -9,6 +9,28 @@ from chromadb.config import Settings as ChromaSettings
 from app.domain.models import Chunk, ChunkRecord, RetrievedChunk
 
 
+def _to_metadata(chunk: Chunk) -> dict:
+    # Chroma metadata values cannot be None, so "page" is only present when the chunk has one.
+    metadata = {
+        "source": chunk.source,
+        "index": chunk.index,
+        "is_image_caption": chunk.is_image_caption,
+    }
+    if chunk.page is not None:
+        metadata["page"] = chunk.page
+    return metadata
+
+
+def _from_metadata(text: str, metadata: dict) -> Chunk:
+    return Chunk(
+        text=text,
+        source=metadata["source"],
+        index=metadata["index"],
+        is_image_caption=metadata["is_image_caption"],
+        page=metadata.get("page"),
+    )
+
+
 class ChromaVectorStore:
     def __init__(self, path: Path, collection_name: str = "documents") -> None:
         path.mkdir(parents=True, exist_ok=True)
@@ -36,14 +58,7 @@ class ChromaVectorStore:
             ids=[record.id for record in records],
             embeddings=[record.embedding for record in records],
             documents=[record.chunk.text for record in records],
-            metadatas=[
-                {
-                    "source": record.chunk.source,
-                    "index": record.chunk.index,
-                    "is_image_caption": record.chunk.is_image_caption,
-                }
-                for record in records
-            ],
+            metadatas=[_to_metadata(record.chunk) for record in records],
         )
 
     async def remove_stale(self, source: str, keep_ids: set[str]) -> None:
@@ -60,15 +75,7 @@ class ChromaVectorStore:
             include=["documents", "metadatas", "distances"],
         )
         return [
-            RetrievedChunk(
-                chunk=Chunk(
-                    text=text,
-                    source=metadata["source"],
-                    index=metadata["index"],
-                    is_image_caption=metadata["is_image_caption"],
-                ),
-                score=1.0 - distance,  # cosine distance -> similarity
-            )
+            RetrievedChunk(chunk=_from_metadata(text, metadata), score=1.0 - distance)
             for text, metadata, distance in zip(
                 result["documents"][0], result["metadatas"][0], result["distances"][0], strict=True
             )

@@ -7,7 +7,15 @@ work, so importing the app touches no files; adapters that open files (Chroma, S
 from functools import cached_property
 
 from app.core.config import Settings
-from app.domain.ports import DocumentReader, DocumentRegistry, DocumentStore, Embedder, VectorStore
+from app.domain.ports import (
+    DocumentReader,
+    DocumentRegistry,
+    DocumentStore,
+    Embedder,
+    ImageCaptioner,
+    VectorStore,
+)
+from app.infrastructure.captioning.registry import create_captioner
 from app.infrastructure.documents.readers import FileReader
 from app.infrastructure.embeddings.registry import create_embedder
 from app.infrastructure.storage.disk_documents import DiskDocumentStore
@@ -25,6 +33,10 @@ class Container:
         return create_embedder(self._settings)
 
     @cached_property
+    def captioner(self) -> ImageCaptioner:
+        return create_captioner(self._settings)
+
+    @cached_property
     def vector_store(self) -> VectorStore:
         return ChromaVectorStore(self._settings.chroma_dir)
 
@@ -38,13 +50,17 @@ class Container:
 
     @cached_property
     def document_reader(self) -> DocumentReader:
-        return FileReader()
+        return FileReader(
+            min_image_dimension_px=self._settings.min_image_dimension_px,
+            max_images_per_document=self._settings.max_images_per_document,
+        )
 
     @cached_property
     def ingestion_service(self) -> IngestionService:
         return IngestionService(
             self.document_reader,
             self.embedder,
+            self.captioner,
             self.vector_store,
             self.document_registry,
             self.document_store,

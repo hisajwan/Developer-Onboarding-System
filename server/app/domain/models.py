@@ -11,6 +11,20 @@ class Chunk:
     source: str
     index: int
     is_image_caption: bool = False
+    page: int | None = None  # 1-indexed; set for image captions, None for text (not page-tracked)
+
+
+@dataclass(frozen=True, slots=True)
+class ExtractedImage:
+    page: int  # 1-indexed
+    content: bytes
+    mime_type: str
+
+
+@dataclass(frozen=True, slots=True)
+class ParsedDocument:
+    text: str
+    images: list[ExtractedImage] = field(default_factory=list)
 
 
 @dataclass(frozen=True, slots=True)

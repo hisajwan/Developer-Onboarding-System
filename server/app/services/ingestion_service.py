@@ -2,24 +2,33 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 
 from app.core.exceptions import DocumentTooLargeError, InvalidDocumentError
-from app.domain.models import ChunkRecord, IndexedDocument, IngestionResult
-from app.domain.ports import DocumentReader, DocumentRegistry, DocumentStore, Embedder, VectorStore
+from app.domain.models import Chunk, ChunkRecord, IndexedDocument, IngestionResult
+from app.domain.ports import (
+    DocumentReader,
+    DocumentRegistry,
+    DocumentStore,
+    Embedder,
+    ImageCaptioner,
+    VectorStore,
+)
 from app.ingestion.chunker import chunk_text
 from app.ingestion.filenames import safe_filename
 from app.ingestion.ids import chunk_id, content_hash
 
 
 class IngestionService:
-    """Upload -> read -> chunk -> embed -> store, safe to repeat.
+    """Upload -> read -> chunk (+ caption any images) -> embed -> store, safe to repeat.
 
     An identical upload (same content, embedding model and chunk settings) is skipped. A changed one
-    is re-indexed, embedding only the chunks that are not already stored.
+    is re-indexed, embedding only the chunks that are not already stored. Every embedded image gets
+    its own caption chunk, tagged with the page it came from, retrievable exactly like a text chunk.
     """
 
     def __init__(
         self,
         reader: DocumentReader,
         embedder: Embedder,
+        captioner: ImageCaptioner,
         vectors: VectorStore,
         registry: DocumentRegistry,
         documents: DocumentStore,
@@ -31,6 +40,7 @@ class IngestionService:
     ) -> None:
         self._reader = reader
         self._embedder = embedder
+        self._captioner = captioner
         self._vectors = vectors
         self._registry = registry
         self._documents = documents
@@ -60,15 +70,26 @@ class IngestionService:
         ):
             return IngestionResult(previous, "unchanged", chunks_embedded=0)
 
-        text = await self._reader.read_text(name, content)
-        chunks = chunk_text(
-            text,
+        parsed = await self._reader.read(name, content)
+        text_chunks = chunk_text(
+            parsed.text,
             name,
             max_tokens=self._chunk_max_tokens,
             overlap_tokens=self._chunk_overlap_tokens,
         )
+        caption_chunks = [
+            Chunk(
+                text=await self._captioner.caption(image.content, image.mime_type),
+                source=name,
+                index=len(text_chunks) + position,
+                is_image_caption=True,
+                page=image.page,
+            )
+            for position, image in enumerate(parsed.images)
+        ]
+        chunks = text_chunks + caption_chunks
         if not chunks:
-            raise InvalidDocumentError("No text could be extracted from the file.")
+            raise InvalidDocumentError("No text or images could be extracted from the file.")
 
         ids = [chunk_id(self._embedder.model_name, chunk) for chunk in chunks]
         already_stored = await self._vectors.existing_ids(ids)

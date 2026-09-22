@@ -8,8 +8,8 @@ from app.infrastructure.vectorstore.chroma_store import ChromaVectorStore
 
 
 def record(id_: str, text: str, vector: list[float], source: str = "a.md", index: int = 0,
-           caption: bool = False) -> ChunkRecord:
-    return ChunkRecord(id_, Chunk(text, source, index, caption), vector)
+           caption: bool = False, page: int | None = None) -> ChunkRecord:
+    return ChunkRecord(id_, Chunk(text, source, index, caption, page), vector)
 
 
 @pytest.fixture
@@ -38,11 +38,21 @@ async def test_search_returns_the_closest_chunk_first_with_a_similarity_score(
 
 @pytest.mark.anyio
 async def test_metadata_round_trips(store: ChromaVectorStore) -> None:
-    await store.upsert([record("1", "a diagram of the system", [1.0, 0.0], "arch.pdf", 3, True)])
+    text = "a diagram of the system"
+    await store.upsert([record("1", text, [1.0, 0.0], "arch.pdf", 3, True, page=2)])
 
     [result] = await store.search([1.0, 0.0], top_k=1)
 
-    assert result.chunk == Chunk("a diagram of the system", "arch.pdf", 3, is_image_caption=True)
+    assert result.chunk == Chunk(text, "arch.pdf", 3, is_image_caption=True, page=2)
+
+
+@pytest.mark.anyio
+async def test_a_chunk_with_no_page_round_trips_as_none(store: ChromaVectorStore) -> None:
+    await store.upsert([record("1", "plain text", [1.0, 0.0])])
+
+    [result] = await store.search([1.0, 0.0], top_k=1)
+
+    assert result.chunk.page is None
 
 
 @pytest.mark.anyio
