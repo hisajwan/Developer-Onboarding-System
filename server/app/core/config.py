@@ -36,6 +36,11 @@ class Settings(BaseSettings):
 
     data_dir: Path = Path("data")
 
+    # Ingestion
+    max_upload_bytes: int = 10 * 1024 * 1024
+    chunk_max_tokens: int = 500
+    chunk_overlap_tokens: int = 50
+
     @property
     def docs_dir(self) -> Path:
         return self.data_dir / "docs"
@@ -43,6 +48,10 @@ class Settings(BaseSettings):
     @property
     def chroma_dir(self) -> Path:
         return self.data_dir / "chroma"
+
+    @property
+    def database_path(self) -> Path:
+        return self.data_dir / "onboarding.db"
 
 
 @lru_cache

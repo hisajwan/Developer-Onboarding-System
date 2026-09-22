@@ -7,6 +7,7 @@ from fastapi import Depends, Request
 
 from app.agent.placeholder_agent import PlaceholderAgent
 from app.agent.tools.registry import ToolRegistry
+from app.api.container import Container
 from app.api.session_cookie import SESSION_COOKIE
 from app.core.config import Settings
 from app.core.exceptions import ConfigurationError
@@ -14,6 +15,7 @@ from app.domain.ports import Agent
 from app.infrastructure.auth.jwt_tokens import JwtSessionTokens
 from app.services.auth_service import AuthService
 from app.services.chat_service import ChatService
+from app.services.ingestion_service import IngestionService
 
 
 def get_app_settings(request: Request) -> Settings:
@@ -21,6 +23,13 @@ def get_app_settings(request: Request) -> Settings:
 
 
 SettingsDep = Annotated[Settings, Depends(get_app_settings)]
+
+
+def get_container(request: Request) -> Container:
+    return request.app.state.container
+
+
+ContainerDep = Annotated[Container, Depends(get_container)]
 
 
 @lru_cache
@@ -37,6 +46,13 @@ def get_chat_service(agent: Annotated[Agent, Depends(get_agent)]) -> ChatService
 
 
 ChatServiceDep = Annotated[ChatService, Depends(get_chat_service)]
+
+
+def get_ingestion_service(container: ContainerDep) -> IngestionService:
+    return container.ingestion_service
+
+
+IngestionServiceDep = Annotated[IngestionService, Depends(get_ingestion_service)]
 
 
 def get_auth_service(settings: SettingsDep) -> AuthService:
