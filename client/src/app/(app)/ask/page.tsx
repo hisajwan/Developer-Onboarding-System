@@ -2,10 +2,10 @@
 
 import { ChatPanel } from "@/components/organisms/ChatPanel";
 import { PageTemplate } from "@/components/templates/PageTemplate";
-import { useChat } from "@/hooks/useChat";
+import { useChatContext } from "../ChatProvider";
 
 export default function AskPage() {
-  const { messages, isSending, error, send } = useChat();
+  const { messages, isSending, error, send } = useChatContext();
 
   return (
     <PageTemplate title="Ask about the codebase">

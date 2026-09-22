@@ -1,12 +1,11 @@
 """Composition root: the only place concrete classes are chosen and wired together."""
 
-from functools import lru_cache
 from typing import Annotated
 
 from fastapi import Depends, Request
 
-from app.agent.placeholder_agent import PlaceholderAgent
 from app.agent.tools.registry import ToolRegistry
+from app.api.container import Container
 from app.api.session_cookie import SESSION_COOKIE
 from app.core.config import Settings
 from app.core.exceptions import ConfigurationError
@@ -14,6 +13,7 @@ from app.domain.ports import Agent
 from app.infrastructure.auth.jwt_tokens import JwtSessionTokens
 from app.services.auth_service import AuthService
 from app.services.chat_service import ChatService
+from app.services.ingestion_service import IngestionService
 
 
 def get_app_settings(request: Request) -> Settings:
@@ -23,13 +23,19 @@ def get_app_settings(request: Request) -> Settings:
 SettingsDep = Annotated[Settings, Depends(get_app_settings)]
 
 
-@lru_cache
-def get_tool_registry() -> ToolRegistry:
-    return ToolRegistry()
+def get_container(request: Request) -> Container:
+    return request.app.state.container
 
 
-def get_agent(tools: Annotated[ToolRegistry, Depends(get_tool_registry)]) -> Agent:
-    return PlaceholderAgent(tools)
+ContainerDep = Annotated[Container, Depends(get_container)]
+
+
+def get_tool_registry(container: ContainerDep) -> ToolRegistry:
+    return container.tool_registry
+
+
+def get_agent(container: ContainerDep) -> Agent:
+    return container.agent
 
 
 def get_chat_service(agent: Annotated[Agent, Depends(get_agent)]) -> ChatService:
@@ -39,17 +45,23 @@ def get_chat_service(agent: Annotated[Agent, Depends(get_agent)]) -> ChatService
 ChatServiceDep = Annotated[ChatService, Depends(get_chat_service)]
 
 
+def get_ingestion_service(container: ContainerDep) -> IngestionService:
+    return container.ingestion_service
+
+
+IngestionServiceDep = Annotated[IngestionService, Depends(get_ingestion_service)]
+
+
 def get_auth_service(settings: SettingsDep) -> AuthService:
-    if settings.auth_username is None or settings.auth_password is None:
+    username = (settings.auth_username or "").strip()
+    password = settings.auth_password.get_secret_value().strip() if settings.auth_password else ""
+    # `KEY=` in .env is present-but-blank, not absent, so a blank value must fail closed too.
+    if not username or not password:
         raise ConfigurationError(
             "Login is not configured: set AUTH_USERNAME, AUTH_PASSWORD and AUTH_SECRET "
             "in server/.env."
         )
-    return AuthService(
-        settings.auth_username,
-        settings.auth_password.get_secret_value(),
-        JwtSessionTokens.from_settings(settings),
-    )
+    return AuthService(username, password, JwtSessionTokens.from_settings(settings))
 
 
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]

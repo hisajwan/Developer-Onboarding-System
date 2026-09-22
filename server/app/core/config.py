@@ -9,6 +9,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 LLMProviderName = Literal["fake", "gemini", "groq", "openrouter"]
 EmbeddingProviderName = Literal["fake", "gemini"]
+CaptionProviderName = Literal["fake", "gemini"]
 
 
 class Settings(BaseSettings):
@@ -24,6 +25,7 @@ class Settings(BaseSettings):
     # "fake" needs no network or keys; switch to a real provider only after the integration gate.
     llm_provider: LLMProviderName = "fake"
     embedding_provider: EmbeddingProviderName = "fake"
+    caption_provider: CaptionProviderName = "fake"
     gemini_api_key: SecretStr | None = None
     groq_api_key: SecretStr | None = None
     openrouter_api_key: SecretStr | None = None
@@ -36,6 +38,17 @@ class Settings(BaseSettings):
 
     data_dir: Path = Path("data")
 
+    # Ingestion
+    max_upload_bytes: int = 10 * 1024 * 1024
+    chunk_max_tokens: int = 500
+    chunk_overlap_tokens: int = 50
+    # Skip PDF images smaller than this (spacers, icons) and cap how many are captioned per file.
+    min_image_dimension_px: int = 32
+    max_images_per_document: int = 20
+
+    # Ask mode: how many chunks retrieve_and_answer feeds to the model per question.
+    retrieval_top_k: int = 4
+
     @property
     def docs_dir(self) -> Path:
         return self.data_dir / "docs"
@@ -43,6 +56,10 @@ class Settings(BaseSettings):
     @property
     def chroma_dir(self) -> Path:
         return self.data_dir / "chroma"
+
+    @property
+    def database_path(self) -> Path:
+        return self.data_dir / "onboarding.db"
 
 
 @lru_cache

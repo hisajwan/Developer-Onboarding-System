@@ -30,6 +30,16 @@ class InvalidCredentialsError(AppError):
     code = "invalid_credentials"
 
 
+class InvalidDocumentError(AppError):
+    status_code = 422
+    code = "invalid_document"
+
+
+class DocumentTooLargeError(AppError):
+    status_code = 413
+    code = "document_too_large"
+
+
 class ConfigurationError(AppError):
     status_code = 500
     code = "configuration_error"
