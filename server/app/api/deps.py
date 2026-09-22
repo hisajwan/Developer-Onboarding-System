@@ -1,11 +1,9 @@
 """Composition root: the only place concrete classes are chosen and wired together."""
 
-from functools import lru_cache
 from typing import Annotated
 
 from fastapi import Depends, Request
 
-from app.agent.placeholder_agent import PlaceholderAgent
 from app.agent.tools.registry import ToolRegistry
 from app.api.container import Container
 from app.api.session_cookie import SESSION_COOKIE
@@ -32,13 +30,12 @@ def get_container(request: Request) -> Container:
 ContainerDep = Annotated[Container, Depends(get_container)]
 
 
-@lru_cache
-def get_tool_registry() -> ToolRegistry:
-    return ToolRegistry()
+def get_tool_registry(container: ContainerDep) -> ToolRegistry:
+    return container.tool_registry
 
 
-def get_agent(tools: Annotated[ToolRegistry, Depends(get_tool_registry)]) -> Agent:
-    return PlaceholderAgent(tools)
+def get_agent(container: ContainerDep) -> Agent:
+    return container.agent
 
 
 def get_chat_service(agent: Annotated[Agent, Depends(get_agent)]) -> ChatService:

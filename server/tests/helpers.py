@@ -1,6 +1,6 @@
 """Plain-class fakes of the storage ports, and a tiny PDF builder, shared by the ingestion tests."""
 
-from app.domain.models import ChunkRecord, IndexedDocument, RetrievedChunk
+from app.domain.models import Chunk, ChunkRecord, IndexedDocument, RetrievedChunk
 
 
 class InMemoryVectorStore:
@@ -59,6 +59,26 @@ class InMemoryDocumentStore:
 
     async def list_filenames(self) -> list[str]:
         return sorted(self.files)
+
+
+async def index_texts(vectors, embedder, entries: list[tuple]) -> None:
+    """Embed and store plain texts directly, for tests of things built on top of a vector store,
+
+    without going through the full ingestion pipeline. Each entry is
+    `(source, text, index=0, is_image_caption=False, page=None)`.
+    """
+    records = []
+    for position, entry in enumerate(entries):
+        source, text, *rest = entry
+        index = rest[0] if len(rest) > 0 else 0
+        is_image_caption = rest[1] if len(rest) > 1 else False
+        page = rest[2] if len(rest) > 2 else None
+        chunk = Chunk(
+            text=text, source=source, index=index, is_image_caption=is_image_caption, page=page
+        )
+        embedding = await embedder.embed_query(text)
+        records.append(ChunkRecord(f"test-chunk-{position}", chunk, embedding))
+    await vectors.upsert(records)
 
 
 def make_pdf_with_image(width: int, height: int, *, mode: str = "L", text: str = "") -> bytes:

@@ -6,3 +6,5 @@ chromadb>=1.0,<2
 pypdf>=5,<7
 python-multipart>=0.0.9,<1
 pillow>=10,<12
+langchain>=0.3,<0.4
+langchain-core>=0.3,<0.4

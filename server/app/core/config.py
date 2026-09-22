@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     min_image_dimension_px: int = 32
     max_images_per_document: int = 20
 
+    # Ask mode: how many chunks retrieve_and_answer feeds to the model per question.
+    retrieval_top_k: int = 4
+
     @property
     def docs_dir(self) -> Path:
         return self.data_dir / "docs"
