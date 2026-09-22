@@ -111,6 +111,27 @@ def test_login_reports_missing_configuration_instead_of_letting_anyone_in() -> N
     assert unconfigured.post("/api/v1/chat", json={"message": "hello"}).status_code == 500
 
 
+def test_blank_credentials_are_treated_as_not_configured_not_as_a_real_empty_login() -> None:
+    """AUTH_USERNAME= / AUTH_PASSWORD= in .env are present but blank, not absent; the app must
+
+    still refuse to start login rather than accept an empty username and password as valid.
+    """
+    settings = Settings(
+        environment="test",
+        auth_username="   ",
+        auth_password=SecretStr("   "),
+        auth_secret=SecretStr(SECRET),
+        _env_file=None,
+    )
+    blank = TestClient(create_app(settings))
+
+    # Non-blank request credentials: this must fail as unconfigured, not as a wrong-password 401.
+    response = login(blank, username="admin", password="admin")
+
+    assert response.status_code == 500
+    assert error_code(response) == "configuration_error"
+
+
 def test_cookie_is_secure_in_production() -> None:
     settings = Settings(
         environment="production",

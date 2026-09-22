@@ -11,13 +11,15 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from app.core.config import Settings
 from app.infrastructure.chat_models.fake import FakeToolCallingChatModel
 from app.infrastructure.chat_models.gemini import GeminiToolCallingChatModel
+from app.infrastructure.chat_models.groq import GroqToolCallingChatModel
+from app.infrastructure.chat_models.openrouter import OpenRouterToolCallingChatModel
 from app.infrastructure.provider_registry import build_provider
 
 _PROVIDERS: dict[str, Callable[[Settings], BaseChatModel]] = {
     "fake": FakeToolCallingChatModel.from_settings,
     "gemini": GeminiToolCallingChatModel.from_settings,
-    # "groq": GroqToolCallingChatModel.from_settings,
-    # "openrouter": OpenRouterToolCallingChatModel.from_settings,
+    "groq": GroqToolCallingChatModel.from_settings,
+    "openrouter": OpenRouterToolCallingChatModel.from_settings,
 }
 
 

@@ -66,3 +66,9 @@ def test_jwt_tokens_satisfy_the_port_and_round_trip() -> None:
 def test_jwt_tokens_need_a_secret() -> None:
     with pytest.raises(ConfigurationError, match="AUTH_SECRET"):
         JwtSessionTokens.from_settings(Settings(_env_file=None))
+
+
+def test_a_blank_secret_is_rejected_the_same_as_a_missing_one() -> None:
+    """`AUTH_SECRET=` in .env parses as an empty string, not None; it must still fail closed."""
+    with pytest.raises(ConfigurationError, match="AUTH_SECRET"):
+        JwtSessionTokens.from_settings(Settings(auth_secret=SecretStr("   "), _env_file=None))

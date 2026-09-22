@@ -5,10 +5,12 @@ from collections.abc import Callable
 from app.core.config import Settings
 from app.domain.ports import Embedder
 from app.infrastructure.embeddings.fake import FakeEmbedder
+from app.infrastructure.embeddings.gemini import GeminiEmbedder
 from app.infrastructure.provider_registry import build_provider
 
 _PROVIDERS: dict[str, Callable[[Settings], Embedder]] = {
     "fake": FakeEmbedder.from_settings,
+    "gemini": GeminiEmbedder.from_settings,
 }
 
 

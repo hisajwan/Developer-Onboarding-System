@@ -1,4 +1,4 @@
-"""Gemini tool-calling chat model. Placeholder: the real SDK call is not wired yet."""
+"""Groq tool-calling chat model. Placeholder: the real SDK call is not wired yet."""
 
 from typing import Any
 
@@ -11,16 +11,16 @@ from app.core.config import Settings
 from app.infrastructure.provider_registry import require_api_key
 
 
-class GeminiToolCallingChatModel(BaseChatModel):
+class GroqToolCallingChatModel(BaseChatModel):
     api_key: SecretStr
 
     @classmethod
-    def from_settings(cls, settings: Settings) -> "GeminiToolCallingChatModel":
-        return cls(api_key=require_api_key(settings.gemini_api_key, "GEMINI_API_KEY"))
+    def from_settings(cls, settings: Settings) -> "GroqToolCallingChatModel":
+        return cls(api_key=require_api_key(settings.groq_api_key, "GROQ_API_KEY"))
 
     @property
     def _llm_type(self) -> str:
-        return "gemini-tool-calling"
+        return "groq-tool-calling"
 
     def bind_tools(self, tools: list[Any], *, tool_choice: str | None = None, **kwargs: Any):
         return self.bind(tools=tools)
@@ -32,4 +32,4 @@ class GeminiToolCallingChatModel(BaseChatModel):
         run_manager: Any = None,
         **kwargs: Any,
     ) -> ChatResult:
-        raise NotImplementedError("Gemini agent generation is not implemented yet.")
+        raise NotImplementedError("Groq agent generation is not implemented yet.")

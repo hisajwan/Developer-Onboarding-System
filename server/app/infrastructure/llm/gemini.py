@@ -3,7 +3,7 @@
 from pydantic import SecretStr
 
 from app.core.config import Settings
-from app.core.exceptions import ConfigurationError
+from app.infrastructure.provider_registry import require_api_key
 
 
 class GeminiLLMClient:
@@ -12,9 +12,7 @@ class GeminiLLMClient:
 
     @classmethod
     def from_settings(cls, settings: Settings) -> "GeminiLLMClient":
-        if settings.gemini_api_key is None:
-            raise ConfigurationError("GEMINI_API_KEY is not set.")
-        return cls(settings.gemini_api_key)
+        return cls(require_api_key(settings.gemini_api_key, "GEMINI_API_KEY"))
 
     async def generate(self, prompt: str, *, system: str | None = None) -> str:
         raise NotImplementedError("Gemini generation is not implemented yet.")

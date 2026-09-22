@@ -3,7 +3,7 @@
 from pydantic import SecretStr
 
 from app.core.config import Settings
-from app.core.exceptions import ConfigurationError
+from app.infrastructure.provider_registry import require_api_key
 
 
 class GeminiImageCaptioner:
@@ -12,9 +12,7 @@ class GeminiImageCaptioner:
 
     @classmethod
     def from_settings(cls, settings: Settings) -> "GeminiImageCaptioner":
-        if settings.gemini_api_key is None:
-            raise ConfigurationError("GEMINI_API_KEY is not set.")
-        return cls(settings.gemini_api_key)
+        return cls(require_api_key(settings.gemini_api_key, "GEMINI_API_KEY"))
 
     async def caption(self, image: bytes, mime_type: str) -> str:
         raise NotImplementedError("Gemini image captioning is not implemented yet.")

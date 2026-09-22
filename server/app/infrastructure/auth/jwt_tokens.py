@@ -6,7 +6,7 @@ import jwt
 from pydantic import SecretStr
 
 from app.core.config import Settings
-from app.core.exceptions import ConfigurationError
+from app.infrastructure.provider_registry import require_api_key
 
 _ALGORITHM = "HS256"
 
@@ -18,9 +18,8 @@ class JwtSessionTokens:
 
     @classmethod
     def from_settings(cls, settings: Settings) -> "JwtSessionTokens":
-        if settings.auth_secret is None:
-            raise ConfigurationError("Login is not configured: set AUTH_SECRET in server/.env.")
-        return cls(settings.auth_secret, timedelta(minutes=settings.session_ttl_minutes))
+        secret = require_api_key(settings.auth_secret, "AUTH_SECRET")
+        return cls(secret, timedelta(minutes=settings.session_ttl_minutes))
 
     def issue(self, username: str) -> str:
         claims = {"sub": username, "exp": datetime.now(UTC) + self._ttl}

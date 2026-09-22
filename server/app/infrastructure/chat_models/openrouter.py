@@ -1,4 +1,4 @@
-"""Gemini tool-calling chat model. Placeholder: the real SDK call is not wired yet."""
+"""OpenRouter tool-calling chat model. Placeholder: the real SDK call is not wired yet."""
 
 from typing import Any
 
@@ -11,16 +11,16 @@ from app.core.config import Settings
 from app.infrastructure.provider_registry import require_api_key
 
 
-class GeminiToolCallingChatModel(BaseChatModel):
+class OpenRouterToolCallingChatModel(BaseChatModel):
     api_key: SecretStr
 
     @classmethod
-    def from_settings(cls, settings: Settings) -> "GeminiToolCallingChatModel":
-        return cls(api_key=require_api_key(settings.gemini_api_key, "GEMINI_API_KEY"))
+    def from_settings(cls, settings: Settings) -> "OpenRouterToolCallingChatModel":
+        return cls(api_key=require_api_key(settings.openrouter_api_key, "OPENROUTER_API_KEY"))
 
     @property
     def _llm_type(self) -> str:
-        return "gemini-tool-calling"
+        return "openrouter-tool-calling"
 
     def bind_tools(self, tools: list[Any], *, tool_choice: str | None = None, **kwargs: Any):
         return self.bind(tools=tools)
@@ -32,4 +32,4 @@ class GeminiToolCallingChatModel(BaseChatModel):
         run_manager: Any = None,
         **kwargs: Any,
     ) -> ChatResult:
-        raise NotImplementedError("Gemini agent generation is not implemented yet.")
+        raise NotImplementedError("OpenRouter agent generation is not implemented yet.")

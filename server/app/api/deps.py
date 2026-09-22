@@ -53,16 +53,15 @@ IngestionServiceDep = Annotated[IngestionService, Depends(get_ingestion_service)
 
 
 def get_auth_service(settings: SettingsDep) -> AuthService:
-    if settings.auth_username is None or settings.auth_password is None:
+    username = (settings.auth_username or "").strip()
+    password = settings.auth_password.get_secret_value().strip() if settings.auth_password else ""
+    # `KEY=` in .env is present-but-blank, not absent, so a blank value must fail closed too.
+    if not username or not password:
         raise ConfigurationError(
             "Login is not configured: set AUTH_USERNAME, AUTH_PASSWORD and AUTH_SECRET "
             "in server/.env."
         )
-    return AuthService(
-        settings.auth_username,
-        settings.auth_password.get_secret_value(),
-        JwtSessionTokens.from_settings(settings),
-    )
+    return AuthService(username, password, JwtSessionTokens.from_settings(settings))
 
 
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
