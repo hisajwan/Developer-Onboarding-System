@@ -8,6 +8,7 @@ from collections.abc import Callable
 from io import BytesIO
 from pathlib import PurePosixPath
 
+from PIL import Image
 from pypdf import PdfReader
 
 from app.core.exceptions import InvalidDocumentError
@@ -15,6 +16,15 @@ from app.domain.models import ExtractedImage, ParsedDocument
 
 # Pillow's detected format, mapped to a mime type a vision model expects. Anything else is skipped.
 _PIL_FORMAT_TO_MIME = {"PNG": "image/png", "JPEG": "image/jpeg", "WEBP": "image/webp"}
+
+
+def _qualifying_mime_type(image: Image.Image, min_image_dimension_px: int) -> str | None:
+    """The mime type to use for this image, or None if it's too small or an unsupported format."""
+    mime_type = _PIL_FORMAT_TO_MIME.get(image.format or "")
+    if mime_type is None:
+        return None
+    width, height = image.size
+    return mime_type if min(width, height) >= min_image_dimension_px else None
 
 
 def _read_text(
@@ -35,11 +45,10 @@ def _extract_images(
             if len(images) >= max_images_per_document:
                 return images
             try:
-                width, height = image.image.size
-                mime_type = _PIL_FORMAT_TO_MIME.get(image.image.format or "")
+                mime_type = _qualifying_mime_type(image.image, min_image_dimension_px)
             except Exception:  # noqa: BLE001 - one unreadable embedded image should not fail the upload
                 continue
-            if mime_type is None or min(width, height) < min_image_dimension_px:
+            if mime_type is None:
                 continue
             images.append(ExtractedImage(page=page_number, content=image.data, mime_type=mime_type))
     return images
@@ -61,11 +70,35 @@ def _read_pdf(
     return ParsedDocument(text=text, images=images)
 
 
+def _read_image(
+    content: bytes, min_image_dimension_px: int, max_images_per_document: int
+) -> ParsedDocument:
+    """A standalone image upload: no text, just the one image, captioned like any PDF figure."""
+    try:
+        image = Image.open(BytesIO(content))
+        image.load()  # Image.open only reads the header; force a full decode now, not later.
+    except Exception as exc:
+        raise InvalidDocumentError("The image could not be read.") from exc
+
+    mime_type = _qualifying_mime_type(image, min_image_dimension_px)
+    if mime_type is None:
+        raise InvalidDocumentError(
+            f"The image must be PNG, JPEG or WEBP and at least {min_image_dimension_px}px "
+            "on its shortest side."
+        )
+    image_record = ExtractedImage(page=1, content=content, mime_type=mime_type)
+    return ParsedDocument(text="", images=[image_record])
+
+
 _READERS: dict[str, Callable[[bytes, int, int], ParsedDocument]] = {
     ".md": _read_text,
     ".markdown": _read_text,
     ".txt": _read_text,
     ".pdf": _read_pdf,
+    ".png": _read_image,
+    ".jpg": _read_image,
+    ".jpeg": _read_image,
+    ".webp": _read_image,
 }
 
 

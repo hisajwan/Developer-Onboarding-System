@@ -13,6 +13,7 @@ from tests.helpers import (
     InMemoryDocumentStore,
     InMemoryRegistry,
     InMemoryVectorStore,
+    make_image,
     make_pdf_with_image,
 )
 
@@ -297,6 +298,29 @@ async def test_an_identical_pdf_reupload_makes_zero_caption_calls(world: World) 
 
     assert result.status == "unchanged"
     assert world.captioner.images_captioned == 1  # only the first upload captioned it
+
+
+@pytest.mark.anyio
+async def test_a_standalone_image_upload_is_indexed_from_its_caption_alone(world: World) -> None:
+    result = await world.service.ingest("diagram.png", make_image(64, 64))
+
+    assert result.status == "indexed"
+    assert result.document.chunk_count == 1
+    assert world.captioner.images_captioned == 1
+    [record] = world.vectors.records.values()
+    assert record.chunk.is_image_caption
+    assert record.chunk.page == 1
+    assert world.documents.files == {"diagram.png": make_image(64, 64)}
+
+
+@pytest.mark.anyio
+async def test_a_standalone_image_reupload_makes_zero_caption_calls(world: World) -> None:
+    await world.service.ingest("diagram.png", make_image(64, 64))
+
+    result = await world.service.ingest("diagram.png", make_image(64, 64))
+
+    assert result.status == "unchanged"
+    assert world.captioner.images_captioned == 1
 
 
 @pytest.mark.anyio

@@ -1,6 +1,20 @@
-"""Plain-class fakes of the storage ports, and a tiny PDF builder, shared by the ingestion tests."""
+"""Plain-class fakes of the storage ports, and tiny PDF/image builders, shared by the ingestion
+
+tests.
+"""
+
+from io import BytesIO
+
+from PIL import Image
 
 from app.domain.models import Chunk, ChunkRecord, IndexedDocument, RetrievedChunk
+
+
+def make_image(width: int = 64, height: int = 64, *, format: str = "PNG") -> bytes:  # noqa: A002
+    """A real, decodable image of the given size and format (e.g. "PNG", "JPEG", "WEBP", "BMP")."""
+    buffer = BytesIO()
+    Image.new("RGB", (width, height), color=(120, 120, 120)).save(buffer, format=format)
+    return buffer.getvalue()
 
 
 class InMemoryVectorStore:

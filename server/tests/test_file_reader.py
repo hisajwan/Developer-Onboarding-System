@@ -4,7 +4,7 @@ from pypdf import PdfWriter
 from app.core.exceptions import InvalidDocumentError
 from app.domain.ports import DocumentReader
 from app.infrastructure.documents.readers import FileReader
-from tests.helpers import make_pdf, make_pdf_with_image, make_two_page_pdf_with_image
+from tests.helpers import make_image, make_pdf, make_pdf_with_image, make_two_page_pdf_with_image
 
 reader = FileReader(min_image_dimension_px=32, max_images_per_document=20)
 
@@ -141,3 +141,53 @@ async def test_the_image_cap_per_document_is_respected() -> None:
 
     assert len((await reader.read("two.pdf", two_images)).images) == 2  # uncapped: both found
     assert len((await capped.read("two.pdf", two_images)).images) == 1  # capped: stops at the limit
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("name", "pil_format", "mime_type"),
+    [
+        ("diagram.png", "PNG", "image/png"),
+        ("photo.jpg", "JPEG", "image/jpeg"),
+        ("photo.jpeg", "JPEG", "image/jpeg"),
+        ("icon.webp", "WEBP", "image/webp"),
+    ],
+)
+async def test_a_standalone_image_upload_is_read_with_no_text(
+    name: str, pil_format: str, mime_type: str
+) -> None:
+    parsed = await reader.read(name, make_image(64, 64, format=pil_format))
+
+    assert parsed.text == ""
+    [image] = parsed.images
+    assert (image.page, image.mime_type) == (1, mime_type)
+    assert image.content  # the original bytes, not re-encoded
+
+
+@pytest.mark.anyio
+async def test_a_standalone_image_that_is_too_small_is_rejected() -> None:
+    with pytest.raises(InvalidDocumentError, match="at least 32px"):
+        await reader.read("icon.png", make_image(10, 10))
+
+
+@pytest.mark.anyio
+async def test_a_standalone_image_in_an_unsupported_format_is_rejected() -> None:
+    # .bmp itself isn't a registered extension; use content Pillow reads as BMP despite the name,
+    # so this actually exercises the content-based format check, not the extension lookup.
+    with pytest.raises(InvalidDocumentError, match="PNG, JPEG or WEBP"):
+        await reader.read("disguised.png", make_image(64, 64, format="BMP"))
+
+
+@pytest.mark.anyio
+async def test_a_corrupt_image_is_rejected_cleanly() -> None:
+    with pytest.raises(InvalidDocumentError, match="could not be read"):
+        await reader.read("broken.png", b"not actually a png")
+
+
+@pytest.mark.anyio
+async def test_the_minimum_dimension_is_configurable_for_standalone_images() -> None:
+    permissive = FileReader(min_image_dimension_px=5, max_images_per_document=20)
+
+    parsed = await permissive.read("icon.png", make_image(10, 10))
+
+    assert len(parsed.images) == 1

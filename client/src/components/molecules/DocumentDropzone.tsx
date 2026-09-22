@@ -55,7 +55,7 @@ export function DocumentDropzone({ onFiles, disabled }: DocumentDropzoneProps) {
         ref={inputRef}
         type="file"
         multiple
-        accept=".md,.markdown,.txt,.pdf"
+        accept=".md,.markdown,.txt,.pdf,.png,.jpg,.jpeg,.webp"
         className="hidden"
         disabled={disabled}
         onChange={(event) => {

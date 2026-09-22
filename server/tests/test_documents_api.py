@@ -4,7 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core.config import Settings
-from tests.helpers import make_pdf, make_pdf_with_image
+from tests.helpers import make_image, make_pdf, make_pdf_with_image
 
 GUIDE = b"# Dev setup\n\nInstall dependencies with npm install, then start with npm run dev."
 
@@ -72,6 +72,26 @@ def test_a_pdf_with_a_diagram_gets_a_captioned_chunk_for_it(auth_client: TestCli
     again = upload(auth_client, "architecture.pdf", pdf, "application/pdf")
     assert again.json()["status"] == "unchanged"
     assert again.json()["chunks_embedded"] == 0
+
+
+def test_a_standalone_image_upload_is_indexed_and_cited(auth_client: TestClient) -> None:
+    response = upload(auth_client, "diagram.png", make_image(64, 64), "image/png")
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["status"] == "indexed"
+    assert body["document"]["chunk_count"] == body["chunks_embedded"] == 1
+    assert [d["filename"] for d in auth_client.get("/api/v1/documents").json()["documents"]] == [
+        "diagram.png"
+    ]
+
+
+def test_a_standalone_image_that_is_too_small_gets_a_clear_422(auth_client: TestClient) -> None:
+    response = upload(auth_client, "icon.png", make_image(10, 10), "image/png")
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "invalid_document"
+    assert "at least" in response.json()["error"]["message"]
 
 
 @pytest.mark.parametrize(
