@@ -4,16 +4,18 @@ from typing import Annotated
 
 from fastapi import Depends, Request
 
-from app.agent.tools.registry import ToolRegistry
 from app.api.container import Container
 from app.api.session_cookie import SESSION_COOKIE
 from app.core.config import Settings
-from app.core.exceptions import ConfigurationError
+from app.domain.models import ChatSession, Project
 from app.domain.ports import Agent
 from app.infrastructure.auth.jwt_tokens import JwtSessionTokens
 from app.services.auth_service import AuthService
 from app.services.chat_service import ChatService
+from app.services.chat_session_service import ChatSessionService
 from app.services.ingestion_service import IngestionService
+from app.services.project_service import ProjectService
+from app.services.user_profile_service import UserProfileService
 
 
 def get_app_settings(request: Request) -> Settings:
@@ -30,21 +32,6 @@ def get_container(request: Request) -> Container:
 ContainerDep = Annotated[Container, Depends(get_container)]
 
 
-def get_tool_registry(container: ContainerDep) -> ToolRegistry:
-    return container.tool_registry
-
-
-def get_agent(container: ContainerDep) -> Agent:
-    return container.agent
-
-
-def get_chat_service(agent: Annotated[Agent, Depends(get_agent)]) -> ChatService:
-    return ChatService(agent)
-
-
-ChatServiceDep = Annotated[ChatService, Depends(get_chat_service)]
-
-
 def get_ingestion_service(container: ContainerDep) -> IngestionService:
     return container.ingestion_service
 
@@ -52,16 +39,11 @@ def get_ingestion_service(container: ContainerDep) -> IngestionService:
 IngestionServiceDep = Annotated[IngestionService, Depends(get_ingestion_service)]
 
 
-def get_auth_service(settings: SettingsDep) -> AuthService:
-    username = (settings.auth_username or "").strip()
-    password = settings.auth_password.get_secret_value().strip() if settings.auth_password else ""
-    # `KEY=` in .env is present-but-blank, not absent, so a blank value must fail closed too.
-    if not username or not password:
-        raise ConfigurationError(
-            "Login is not configured: set AUTH_USERNAME, AUTH_PASSWORD and AUTH_SECRET "
-            "in server/.env."
-        )
-    return AuthService(username, password, JwtSessionTokens.from_settings(settings))
+def get_auth_service(settings: SettingsDep, container: ContainerDep) -> AuthService:
+    # Check the signing secret (raises ConfigurationError if missing or blank) before touching the
+    # user database, so a config error never has the side effect of creating a data directory.
+    tokens = JwtSessionTokens.from_settings(settings)
+    return AuthService(container.user_registry, tokens)
 
 
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
@@ -73,3 +55,60 @@ def require_session(request: Request, auth: AuthServiceDep) -> str:
 
 
 SessionDep = Annotated[str, Depends(require_session)]
+
+
+def get_user_profile_service(container: ContainerDep) -> UserProfileService:
+    return container.user_profile_service
+
+
+UserProfileServiceDep = Annotated[UserProfileService, Depends(get_user_profile_service)]
+
+
+def get_project_service(container: ContainerDep) -> ProjectService:
+    return container.project_service
+
+
+ProjectServiceDep = Annotated[ProjectService, Depends(get_project_service)]
+
+
+async def require_owned_project(
+    project_id: str, username: SessionDep, service: ProjectServiceDep
+) -> Project:
+    """Route dependency for any `/projects/{project_id}/...` route: the project, already confirmed
+
+    to belong to the current user (a 404, not a 403, if it doesn't - see ProjectService).
+    """
+    return await service.get_owned_project(username, project_id)
+
+
+OwnedProjectDep = Annotated[Project, Depends(require_owned_project)]
+
+
+def get_chat_session_service(container: ContainerDep) -> ChatSessionService:
+    return container.chat_session_service
+
+
+ChatSessionServiceDep = Annotated[ChatSessionService, Depends(get_chat_session_service)]
+
+
+async def require_owned_session(
+    project_id: str, session_id: str, username: SessionDep, service: ChatSessionServiceDep
+) -> ChatSession:
+    """Route dependency for any `/projects/{project_id}/sessions/{session_id}/...` route."""
+    return await service.get_owned_session(username, project_id, session_id)
+
+
+OwnedSessionDep = Annotated[ChatSession, Depends(require_owned_session)]
+
+
+def get_agent(project: OwnedProjectDep, container: ContainerDep) -> Agent:
+    return container.agent_for(project.id)
+
+
+def get_chat_service(
+    agent: Annotated[Agent, Depends(get_agent)], session: OwnedSessionDep, container: ContainerDep
+) -> ChatService:
+    return ChatService(agent, container.chat_history, session.id)
+
+
+ChatServiceDep = Annotated[ChatService, Depends(get_chat_service)]

@@ -1,9 +1,11 @@
+from datetime import UTC, datetime
+
 import pytest
 
 from app.agent.langchain_agent import LangChainAgent
 from app.agent.tools.registry import ToolRegistry
 from app.core.config import Settings
-from app.domain.models import ToolResult
+from app.domain.models import ChatMessage, ToolResult
 from app.domain.ports import Agent
 from app.infrastructure.chat_models.fake import FakeToolCallingChatModel
 
@@ -67,3 +69,34 @@ async def test_a_tool_error_propagates_instead_of_a_silent_wrong_answer() -> Non
 
     with pytest.raises(Exception, match="provider unavailable"):
         await agent.run("How do I set up the dev environment?")
+
+
+@pytest.mark.anyio
+async def test_run_works_with_no_history_passed_at_all() -> None:
+    tool = RecordingTool(ToolResult(content="fine"))
+    agent = make_agent(tool)
+
+    reply = await agent.run("a question")  # history omitted - the default must not break the prompt
+
+    assert reply.content == "fine"
+
+
+@pytest.mark.anyio
+async def test_past_turns_do_not_confuse_the_fake_model_about_the_current_question() -> None:
+    """The fake chat model always answers by routing the *last* human message to a tool - this
+
+    only stays correct once past turns are mixed into the prompt if the current question is still
+    found. Real memory (a real model reading the whole transcript) is out of scope for a fake.
+    """
+    tool = RecordingTool(ToolResult(content="Run npm install."))
+    agent = make_agent(tool)
+    now = datetime.now(UTC)
+    history = [
+        ChatMessage(role="user", content="What is this project?", created_at=now),
+        ChatMessage(role="assistant", content="It's an onboarding assistant.", created_at=now),
+    ]
+
+    reply = await agent.run("How do I set it up?", history)
+
+    assert reply.content == "Run npm install."
+    assert tool.calls == ["How do I set it up?"]  # not a historical message

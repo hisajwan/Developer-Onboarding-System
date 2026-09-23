@@ -1,7 +1,7 @@
 from collections.abc import Callable
 from datetime import UTC, datetime
 
-from app.core.exceptions import DocumentTooLargeError, InvalidDocumentError
+from app.core.exceptions import DocumentTooLargeError, InvalidDocumentError, NotFoundError
 from app.domain.models import Chunk, ChunkRecord, IndexedDocument, IngestionResult
 from app.domain.ports import (
     DocumentReader,
@@ -53,7 +53,7 @@ class IngestionService:
     def _index_signature(self) -> str:
         return f"{self._embedder.model_name}|{self._chunk_max_tokens}|{self._chunk_overlap_tokens}"
 
-    async def ingest(self, filename: str, content: bytes) -> IngestionResult:
+    async def ingest(self, project_id: str, filename: str, content: bytes) -> IngestionResult:
         name = safe_filename(filename)
         if not content:
             raise InvalidDocumentError("The file is empty.")
@@ -62,7 +62,7 @@ class IngestionService:
             raise DocumentTooLargeError(f"The file is larger than the {limit_mb} MB limit.")
 
         digest = content_hash(content)
-        previous = await self._registry.get(name)
+        previous = await self._registry.get(project_id, name)
         if (
             previous is not None
             and previous.content_hash == digest
@@ -91,8 +91,8 @@ class IngestionService:
         if not chunks:
             raise InvalidDocumentError("No text or images could be extracted from the file.")
 
-        ids = [chunk_id(self._embedder.model_name, chunk) for chunk in chunks]
-        already_stored = await self._vectors.existing_ids(ids)
+        ids = [chunk_id(self._embedder.model_name, project_id, chunk) for chunk in chunks]
+        already_stored = await self._vectors.existing_ids(project_id, ids)
         missing = [
             (id_, chunk)
             for id_, chunk in zip(ids, chunks, strict=True)
@@ -102,14 +102,15 @@ class IngestionService:
         if missing:
             embeddings = await self._embedder.embed_documents([chunk.text for _, chunk in missing])
             await self._vectors.upsert(
+                project_id,
                 [
                     ChunkRecord(id_, chunk, embedding)
                     for (id_, chunk), embedding in zip(missing, embeddings, strict=True)
-                ]
+                ],
             )
-        await self._vectors.remove_stale(name, keep_ids=set(ids))
+        await self._vectors.remove_stale(project_id, name, keep_ids=set(ids))
 
-        await self._documents.save(name, content)
+        await self._documents.save(project_id, name, content)
         document = IndexedDocument(
             filename=name,
             content_hash=digest,
@@ -117,8 +118,17 @@ class IngestionService:
             chunk_count=len(chunks),
             indexed_at=self._clock(),
         )
-        await self._registry.record(document)
+        await self._registry.record(project_id, document)
         return IngestionResult(document, "indexed", chunks_embedded=len(missing))
 
-    async def list_documents(self) -> list[IndexedDocument]:
-        return await self._registry.list_all()
+    async def list_documents(self, project_id: str) -> list[IndexedDocument]:
+        return await self._registry.list_all(project_id)
+
+    async def delete_document(self, project_id: str, filename: str) -> None:
+        name = safe_filename(filename)
+        removed = await self._registry.delete(project_id, name)
+        if not removed:
+            raise NotFoundError(f"'{name}' is not indexed in this project.")
+        # No keep_ids at all: every chunk this source has in the vector store is stale now.
+        await self._vectors.remove_stale(project_id, name, keep_ids=set())
+        await self._documents.delete(project_id, name)

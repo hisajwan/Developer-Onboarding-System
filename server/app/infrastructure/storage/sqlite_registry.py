@@ -10,11 +10,13 @@ from app.domain.models import IndexedDocument
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS documents (
-    filename        TEXT PRIMARY KEY,
+    project_id      TEXT NOT NULL,
+    filename        TEXT NOT NULL,
     content_hash    TEXT NOT NULL,
     index_signature TEXT NOT NULL,
     chunk_count     INTEGER NOT NULL,
-    indexed_at      TEXT NOT NULL
+    indexed_at      TEXT NOT NULL,
+    PRIMARY KEY (project_id, filename)
 )
 """
 
@@ -29,34 +31,38 @@ class SqliteDocumentRegistry:
     def _connect(self) -> sqlite3.Connection:
         return sqlite3.connect(self._path)
 
-    async def get(self, filename: str) -> IndexedDocument | None:
-        return await asyncio.to_thread(self._get, filename)
+    async def get(self, project_id: str, filename: str) -> IndexedDocument | None:
+        return await asyncio.to_thread(self._get, project_id, filename)
 
-    async def record(self, document: IndexedDocument) -> None:
-        await asyncio.to_thread(self._record, document)
+    async def record(self, project_id: str, document: IndexedDocument) -> None:
+        await asyncio.to_thread(self._record, project_id, document)
 
-    async def list_all(self) -> list[IndexedDocument]:
-        return await asyncio.to_thread(self._list_all)
+    async def list_all(self, project_id: str) -> list[IndexedDocument]:
+        return await asyncio.to_thread(self._list_all, project_id)
 
-    def _get(self, filename: str) -> IndexedDocument | None:
+    async def delete(self, project_id: str, filename: str) -> bool:
+        return await asyncio.to_thread(self._delete, project_id, filename)
+
+    def _get(self, project_id: str, filename: str) -> IndexedDocument | None:
         with closing(self._connect()) as connection:
             row = connection.execute(
                 "SELECT filename, content_hash, index_signature, chunk_count, indexed_at "
-                "FROM documents WHERE filename = ?",
-                (filename,),
+                "FROM documents WHERE project_id = ? AND filename = ?",
+                (project_id, filename),
             ).fetchone()
         return _to_document(row) if row else None
 
-    def _record(self, document: IndexedDocument) -> None:
+    def _record(self, project_id: str, document: IndexedDocument) -> None:
         with closing(self._connect()) as connection, connection:
             connection.execute(
                 "INSERT INTO documents "
-                "(filename, content_hash, index_signature, chunk_count, indexed_at) "
-                "VALUES (?, ?, ?, ?, ?) "
-                "ON CONFLICT(filename) DO UPDATE SET content_hash = excluded.content_hash, "
-                "index_signature = excluded.index_signature, chunk_count = excluded.chunk_count, "
-                "indexed_at = excluded.indexed_at",
+                "(project_id, filename, content_hash, index_signature, chunk_count, indexed_at) "
+                "VALUES (?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT(project_id, filename) DO UPDATE SET "
+                "content_hash = excluded.content_hash, index_signature = excluded.index_signature, "
+                "chunk_count = excluded.chunk_count, indexed_at = excluded.indexed_at",
                 (
+                    project_id,
                     document.filename,
                     document.content_hash,
                     document.index_signature,
@@ -65,13 +71,22 @@ class SqliteDocumentRegistry:
                 ),
             )
 
-    def _list_all(self) -> list[IndexedDocument]:
+    def _list_all(self, project_id: str) -> list[IndexedDocument]:
         with closing(self._connect()) as connection:
             rows = connection.execute(
                 "SELECT filename, content_hash, index_signature, chunk_count, indexed_at "
-                "FROM documents ORDER BY indexed_at DESC, filename"
+                "FROM documents WHERE project_id = ? ORDER BY indexed_at DESC, filename",
+                (project_id,),
             ).fetchall()
         return [_to_document(row) for row in rows]
+
+    def _delete(self, project_id: str, filename: str) -> bool:
+        with closing(self._connect()) as connection, connection:
+            cursor = connection.execute(
+                "DELETE FROM documents WHERE project_id = ? AND filename = ?",
+                (project_id, filename),
+            )
+        return cursor.rowcount > 0
 
 
 def _to_document(row: tuple) -> IndexedDocument:

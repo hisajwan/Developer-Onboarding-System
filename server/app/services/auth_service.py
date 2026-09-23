@@ -1,24 +1,45 @@
-from hmac import compare_digest
+from datetime import UTC, datetime
 
 from app.core.exceptions import InvalidCredentialsError, UnauthorizedError
-from app.domain.ports import SessionTokens
+from app.domain.models import User
+from app.domain.ports import SessionTokens, UserRegistry
+from app.infrastructure.auth.passwords import dummy_password_hash, hash_password, verify_password
 
 
 class AuthService:
-    """Checks the one configured user and turns a login into a session token."""
+    """Looks a login up in the user registry and turns a valid one into a session token."""
 
-    def __init__(self, username: str, password: str, tokens: SessionTokens) -> None:
-        self._username = username
-        self._password = password
+    def __init__(self, users: UserRegistry, tokens: SessionTokens) -> None:
+        self._users = users
         self._tokens = tokens
 
-    def login(self, username: str, password: str) -> str:
-        # Both comparisons always run, and neither reveals which of the two was wrong.
-        username_ok = compare_digest(username.encode(), self._username.encode())
-        password_ok = compare_digest(password.encode(), self._password.encode())
-        if not (username_ok and password_ok):
+    async def signup(
+        self, *, first_name: str, last_name: str, email: str, username: str, password: str
+    ) -> str:
+        """Creates a new account and logs it straight in. Raises AccountAlreadyExistsError if the
+
+        username or email is already taken.
+        """
+        user = User(
+            username=username,
+            password_hash=hash_password(password),
+            first_name=first_name,
+            last_name=last_name,
+            email=email,
+            created_at=datetime.now(UTC),
+        )
+        await self._users.create(user)
+        return self._tokens.issue(user.username)
+
+    async def login(self, username: str, password: str) -> str:
+        user = await self._users.get(username)
+        # Verify against a real hash either way, so a nonexistent username fails no faster than a
+        # wrong password for one that exists.
+        password_hash = user.password_hash if user else dummy_password_hash()
+        password_ok = verify_password(password, password_hash)
+        if not (user and password_ok):
             raise InvalidCredentialsError("Invalid username or password.")
-        return self._tokens.issue(self._username)
+        return self._tokens.issue(user.username)
 
     def authenticate(self, token: str | None) -> str:
         username = self._tokens.read(token) if token else None

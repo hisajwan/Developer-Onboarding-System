@@ -11,7 +11,7 @@ export function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
-// Everything except the API proxy, the login page and static assets.
+// Everything except the API proxy, the login/signup pages and static assets.
 export const config = {
-  matcher: ["/((?!api|login|_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!api|login|signup|_next/static|_next/image|favicon.ico).*)"],
 };
