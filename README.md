@@ -6,7 +6,18 @@ AI-powered developer onboarding assistant. Monorepo with a FastAPI backend and a
 server/        FastAPI. api -> services -> domain ports <- infrastructure
 server/lint/   small Node helper that lints a pasted snippet with ESLint (used by code review)
 client/        Next.js + Tailwind. atoms -> molecules -> organisms -> templates -> pages
+docs/          architecture, database, API, configuration, development
 ```
+
+## Documentation
+
+- [Architecture](docs/architecture.md): components, backend layers, ownership model, and the ingestion, chat and code
+  review flows.
+- [Database design](docs/database.md): SQLite tables, the Chroma collection and the files on disk.
+- [API reference](docs/api.md): every endpoint, request and response shape, and error codes. The running server also
+  serves interactive docs at http://localhost:8000/docs.
+- [Configuration](docs/configuration.md): every server and client setting, with defaults.
+- [Development](docs/development.md): repository layout, where new code goes, tests, CI and branches.
 
 ## Features
 
@@ -31,7 +42,7 @@ cd server
 python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
 (cd lint && npm install)      # ESLint helper for code review
-cp .env.example .env          # then set AUTH_SECRET (signs the login cookie); see the comments in the file
+cp .env.example .env          # then set AUTH_SECRET (signs the login cookie); see docs/configuration.md
 uvicorn app.main:app --reload --port 8000
 ```
 
@@ -52,15 +63,18 @@ To create an account or reset a password from the command line instead (there is
 
 ### Model providers
 
-By default every provider is `fake` (`LLM_PROVIDER`, `EMBEDDING_PROVIDER`, `CAPTION_PROVIDER` in `server/.env`): no API
-keys and no network. Answers and captions are placeholders, and code review shows ESLint results only. To use real models,
-set a provider (`gemini`, `groq` or `openrouter` for the LLM; `gemini` for embeddings and captions) and its API key in
-`server/.env`. Keys stay on the server; never put them in `client/`.
+Every provider defaults to `fake` (`LLM_PROVIDER`, `EMBEDDING_PROVIDER`, `CAPTION_PROVIDER` in `server/.env`), so the
+app runs with no API keys and no network: answers echo the retrieved context, captions describe the image's type and
+size, and code review shows ESLint results only (ESLint itself is real and runs locally).
+
+The Gemini, Groq and OpenRouter adapters are not implemented yet; selecting one currently fails with a "not implemented
+yet" error. When they are, keys go in `server/.env` only, never in `client/`. See
+[architecture: model providers](docs/architecture.md#model-providers-current-status).
 
 ## API
 
-All routes are under `/api/v1`. Everything except health and the auth routes needs the login cookie; a project or
-session you don't own returns 404.
+All routes are under `/api/v1` and, apart from health and the auth routes, need the login cookie. Summary below; full
+request/response shapes and error codes are in the [API reference](docs/api.md).
 
 | Area | Routes |
 |---|---|
