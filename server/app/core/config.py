@@ -30,10 +30,9 @@ class Settings(BaseSettings):
     groq_api_key: SecretStr | None = None
     openrouter_api_key: SecretStr | None = None
 
-    # Login gate: one user, checked on the server. Set all three in server/.env (off while unset).
-    auth_username: str | None = None
-    auth_password: SecretStr | None = None
-    auth_secret: SecretStr | None = None  # signs the session token
+    # Login: accounts live in the users table (see scripts/create_user.py), not here. This secret
+    # only signs the session token, so it alone must be set in server/.env.
+    auth_secret: SecretStr | None = None
     session_ttl_minutes: int = 480
 
     data_dir: Path = Path("data")

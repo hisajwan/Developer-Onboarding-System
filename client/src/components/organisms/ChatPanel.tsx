@@ -6,13 +6,21 @@ interface ChatPanelProps {
   messages: ChatMessage[];
   onSend: (text: string) => void;
   isSending: boolean;
+  isLoadingHistory?: boolean;
   error: string | null;
 }
 
-export function ChatPanel({ messages, onSend, isSending, error }: ChatPanelProps) {
+export function ChatPanel({
+  messages,
+  onSend,
+  isSending,
+  isLoadingHistory,
+  error,
+}: ChatPanelProps) {
   return (
     <div className="flex h-full flex-col gap-4">
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto" aria-live="polite">
+        {isLoadingHistory && <p className="text-xs text-muted">Loading conversation...</p>}
         {messages.map(({ id, ...message }) => (
           <MessageBubble key={id} {...message} />
         ))}

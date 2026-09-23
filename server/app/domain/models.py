@@ -63,6 +63,55 @@ class IngestionResult:
 
 
 @dataclass(frozen=True, slots=True)
+class User:
+    """A login account, created via `POST /signup` or the seed script (`scripts/create_user.py`)."""
+
+    username: str
+    password_hash: str
+    first_name: str
+    last_name: str
+    email: str
+    created_at: datetime
+    last_project_id: str | None = None  # restored as the active project on the next login
+
+
+@dataclass(frozen=True, slots=True)
+class Project:
+    """A workspace of documents and chat history. One owner, no membership or roles."""
+
+    id: str
+    owner_username: str
+    name: str
+    created_at: datetime
+    updated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class ChatSession:
+    """One conversation thread within a project. A project can have several; its documents and
+
+    retrieval are shared by all of them, only the conversation itself is separate.
+    """
+
+    id: str
+    project_id: str
+    name: str
+    created_at: datetime
+
+
+ChatRole = Literal["user", "assistant"]
+
+
+@dataclass(frozen=True, slots=True)
+class ChatMessage:
+    """One turn of a session's saved conversation, fed back to the agent as its memory."""
+
+    role: ChatRole
+    content: str
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
 class ToolResult:
     content: str
     sources: tuple[str, ...] = ()

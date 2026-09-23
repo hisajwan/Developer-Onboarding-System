@@ -4,13 +4,16 @@ Adding a tool never touches this file — register it in `deps.py`'s container w
 sharp `description`, and the model (or the fake, for one tool) picks it up automatically.
 """
 
+from collections.abc import Sequence
+
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.tools import StructuredTool
 
 from app.agent.tools.registry import ToolRegistry
-from app.domain.models import AgentReply, ToolResult
+from app.domain.models import AgentReply, ChatMessage, ToolResult
 from app.domain.ports import Tool
 
 _SYSTEM_PROMPT = (
@@ -22,6 +25,7 @@ _SYSTEM_PROMPT = (
 _PROMPT = ChatPromptTemplate.from_messages(
     [
         ("system", _SYSTEM_PROMPT),
+        MessagesPlaceholder("chat_history", optional=True),
         ("human", "{input}"),
         ("placeholder", "{agent_scratchpad}"),
     ]
@@ -33,19 +37,30 @@ class LangChainAgent:
         self._tools = tools
         self._chat_model = chat_model
 
-    async def run(self, message: str) -> AgentReply:
+    async def run(self, message: str, history: Sequence[ChatMessage] = ()) -> AgentReply:
         calls: list[tuple[str, ToolResult]] = []
         langchain_tools = [_as_langchain_tool(tool, calls) for tool in self._tools.all()]
         agent = create_tool_calling_agent(self._chat_model, langchain_tools, _PROMPT)
         executor = AgentExecutor(agent=agent, tools=langchain_tools)
 
-        result = await executor.ainvoke({"input": message})
+        result = await executor.ainvoke(
+            {"input": message, "chat_history": _to_langchain_messages(history)}
+        )
 
         sources = tuple(
             dict.fromkeys(source for _, tool_result in calls for source in tool_result.sources)
         )
         tools_used = tuple(dict.fromkeys(name for name, _ in calls))
         return AgentReply(content=result["output"], sources=sources, tools_used=tools_used)
+
+
+def _to_langchain_messages(history: Sequence[ChatMessage]) -> list[BaseMessage]:
+    return [
+        HumanMessage(content=turn.content)
+        if turn.role == "user"
+        else AIMessage(content=turn.content)
+        for turn in history
+    ]
 
 
 def _as_langchain_tool(tool: Tool, calls: list[tuple[str, ToolResult]]) -> StructuredTool:
