@@ -13,6 +13,7 @@ from app.infrastructure.auth.jwt_tokens import JwtSessionTokens
 from app.services.auth_service import AuthService
 from app.services.chat_service import ChatService
 from app.services.chat_session_service import ChatSessionService
+from app.services.code_review_service import CodeReviewService
 from app.services.ingestion_service import IngestionService
 from app.services.project_service import ProjectService
 from app.services.user_profile_service import UserProfileService
@@ -112,3 +113,10 @@ def get_chat_service(
 
 
 ChatServiceDep = Annotated[ChatService, Depends(get_chat_service)]
+
+
+def get_code_review_service(container: ContainerDep) -> CodeReviewService:
+    return container.code_review_service
+
+
+CodeReviewServiceDep = Annotated[CodeReviewService, Depends(get_code_review_service)]

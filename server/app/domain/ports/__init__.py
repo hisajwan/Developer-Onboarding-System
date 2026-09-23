@@ -3,6 +3,8 @@
 from app.domain.ports.agent import Agent
 from app.domain.ports.chat_history import ChatHistory
 from app.domain.ports.chat_session_registry import ChatSessionRegistry
+from app.domain.ports.code_linter import CodeLinter
+from app.domain.ports.code_reviewer import CodeReviewer
 from app.domain.ports.document_reader import DocumentReader
 from app.domain.ports.document_registry import DocumentRegistry
 from app.domain.ports.document_store import DocumentStore
@@ -19,6 +21,8 @@ __all__ = [
     "Agent",
     "ChatHistory",
     "ChatSessionRegistry",
+    "CodeLinter",
+    "CodeReviewer",
     "DocumentReader",
     "DocumentRegistry",
     "DocumentStore",

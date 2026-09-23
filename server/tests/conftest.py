@@ -1,5 +1,6 @@
 import asyncio
 import secrets
+import shutil
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
@@ -15,6 +16,14 @@ from app.infrastructure.storage.sqlite_chat_session_registry import SqliteChatSe
 from app.infrastructure.storage.sqlite_project_registry import SqliteProjectRegistry
 from app.infrastructure.storage.sqlite_user_registry import SqliteUserRegistry
 from app.main import create_app
+
+_LINT_DIR = Settings(_env_file=None).lint_dir
+
+# Tests that run the real ESLint helper (local Node, no network) need `npm install` in server/lint.
+requires_linter = pytest.mark.skipif(
+    shutil.which("node") is None or not (_LINT_DIR / "node_modules").is_dir(),
+    reason="ESLint helper not installed (run `npm install` in server/lint)",
+)
 
 # Generated per test run, so no credential-like literal lives in the repo.
 USERNAME = "dev"

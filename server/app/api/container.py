@@ -11,11 +11,13 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from app.agent.langchain_agent import LangChainAgent
 from app.agent.tools.registry import ToolRegistry
 from app.agent.tools.retrieve_and_answer import RetrieveAndAnswerTool
+from app.agent.tools.review_code import ReviewCodeTool
 from app.core.config import Settings
 from app.domain.ports import (
     Agent,
     ChatHistory,
     ChatSessionRegistry,
+    CodeLinter,
     DocumentReader,
     DocumentRegistry,
     DocumentStore,
@@ -30,6 +32,7 @@ from app.infrastructure.captioning.registry import create_captioner
 from app.infrastructure.chat_models.registry import create_chat_model
 from app.infrastructure.documents.readers import FileReader
 from app.infrastructure.embeddings.registry import create_embedder
+from app.infrastructure.linting.eslint_node import EslintNodeLinter
 from app.infrastructure.llm.registry import create_llm_client
 from app.infrastructure.storage.disk_documents import DiskDocumentStore
 from app.infrastructure.storage.sqlite_chat_history import SqliteChatHistory
@@ -39,6 +42,7 @@ from app.infrastructure.storage.sqlite_registry import SqliteDocumentRegistry
 from app.infrastructure.storage.sqlite_user_registry import SqliteUserRegistry
 from app.infrastructure.vectorstore.chroma_store import ChromaVectorStore
 from app.services.chat_session_service import ChatSessionService
+from app.services.code_review_service import CodeReviewService
 from app.services.ingestion_service import IngestionService
 from app.services.project_service import ProjectService
 from app.services.user_profile_service import UserProfileService
@@ -63,6 +67,14 @@ class Container:
     @cached_property
     def chat_model(self) -> BaseChatModel:
         return create_chat_model(self._settings)
+
+    @cached_property
+    def code_linter(self) -> CodeLinter:
+        return EslintNodeLinter.from_settings(self._settings)
+
+    @cached_property
+    def code_review_service(self) -> CodeReviewService:
+        return CodeReviewService(self.code_linter, self.llm_client)
 
     @cached_property
     def vector_store(self) -> VectorStore:
@@ -135,7 +147,12 @@ class Container:
         )
 
     def tool_registry_for(self, project_id: str) -> ToolRegistry:
-        return ToolRegistry([self.retrieve_and_answer_tool_for(project_id)])
+        return ToolRegistry(
+            [
+                self.retrieve_and_answer_tool_for(project_id),
+                ReviewCodeTool(self.code_review_service),
+            ]
+        )
 
     def agent_for(self, project_id: str) -> Agent:
         return LangChainAgent(self.tool_registry_for(project_id), self.chat_model)

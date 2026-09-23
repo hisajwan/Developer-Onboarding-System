@@ -1,7 +1,16 @@
 from fastapi import APIRouter, Depends
 
 from app.api.deps import require_session
-from app.api.routes import auth, chat, chat_sessions, documents, health, profile, projects
+from app.api.routes import (
+    auth,
+    chat,
+    chat_sessions,
+    documents,
+    health,
+    profile,
+    projects,
+    reviews,
+)
 
 api_router = APIRouter()
 
@@ -16,3 +25,4 @@ api_router.include_router(chat_sessions.router, dependencies=protected)
 api_router.include_router(chat.router, dependencies=protected)
 api_router.include_router(documents.router, dependencies=protected)
 api_router.include_router(profile.router, dependencies=protected)
+api_router.include_router(reviews.router, dependencies=protected)

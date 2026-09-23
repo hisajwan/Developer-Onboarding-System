@@ -48,6 +48,12 @@ class Settings(BaseSettings):
     # Ask mode: how many chunks retrieve_and_answer feeds to the model per question.
     retrieval_top_k: int = 4
 
+    # Code review: the Node helper that lints a snippet with ESLint (install it with `npm install`
+    # in server/lint). Defaults to that folder wherever the server is started from.
+    lint_dir: Path = Path(__file__).resolve().parents[2] / "lint"
+    node_binary: str = "node"
+    lint_timeout_seconds: float = 20.0
+
     @property
     def docs_dir(self) -> Path:
         return self.data_dir / "docs"

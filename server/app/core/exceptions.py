@@ -45,6 +45,13 @@ class DocumentTooLargeError(AppError):
     code = "document_too_large"
 
 
+class LinterError(AppError):
+    """The snippet linter ran but failed (crashed, timed out, or returned something unreadable)."""
+
+    status_code = 502
+    code = "linter_failed"
+
+
 class ConfigurationError(AppError):
     status_code = 500
     code = "configuration_error"

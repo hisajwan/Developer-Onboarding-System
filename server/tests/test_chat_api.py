@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 
 from app.core.config import Settings
-from tests.conftest import seed_chat_session, seed_project
+from tests.conftest import requires_linter, seed_chat_session, seed_project
 
 GUIDE = b"# Dev setup\n\nRun npm install, then start the app with npm run dev."
 
@@ -127,3 +127,27 @@ def test_chat_on_a_session_from_a_different_project_is_not_found(
     response = ask(auth_client, project_id, session_of_other_project.id, "hello")
 
     assert response.status_code == 404
+
+
+@requires_linter
+def test_a_pasted_snippet_is_routed_to_code_review(
+    auth_client: TestClient, project_id: str, chat_session_id: str
+) -> None:
+    snippet = (
+        "Please review:\n```tsx\nfunction Card({ src }) {\n  return <img src={src} />;\n}\n```"
+    )
+
+    body = ask(auth_client, project_id, chat_session_id, snippet).json()
+
+    assert body["tools_used"] == ["review_code"]
+    assert "[accessibility] line 2:" in body["reply"]
+    assert "(jsx-a11y/alt-text)" in body["reply"]
+    assert body["sources"] == []
+
+
+def test_a_question_next_to_code_tools_still_goes_to_the_docs(
+    auth_client: TestClient, project_id: str, chat_session_id: str
+) -> None:
+    body = ask(auth_client, project_id, chat_session_id, "Which function handles login?").json()
+
+    assert body["tools_used"] == ["retrieve_and_answer"]

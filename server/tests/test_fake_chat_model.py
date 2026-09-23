@@ -64,3 +64,58 @@ def test_calling_it_with_no_human_message_is_a_clear_error(model: FakeToolCallin
 
     with pytest.raises(RuntimeError, match="No user message"):
         bound.invoke([AIMessage(content="only an ai message")])
+
+
+REVIEW_TOOL = StructuredTool.from_function(
+    coroutine=noop, name="review_code", description="reviews code"
+)
+
+SNIPPET = "function Card({ src }) {\n  return <img src={src} />;\n}"
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        SNIPPET,
+        "Can you check this?\n```\nanything at all\n```",
+        "const total = items.reduce((sum, i) => sum + i, 0);",
+        "Is this ok: <button onClick={save}>Save</button>",
+    ],
+)
+def test_a_message_that_looks_like_code_goes_to_review_code(
+    model: FakeToolCallingChatModel, message: str
+) -> None:
+    bound = model.bind_tools([TOOL, REVIEW_TOOL])
+
+    [call] = bound.invoke([HumanMessage(content=message)]).tool_calls
+
+    assert call["name"] == "review_code"
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "How do I set up the dev environment?",
+        "What does the auth flow do; is it safe?",
+        "Where is the config { stored }?",
+        "Which function handles login?",
+    ],
+)
+def test_a_plain_question_goes_to_the_first_tool(
+    model: FakeToolCallingChatModel, message: str
+) -> None:
+    bound = model.bind_tools([TOOL, REVIEW_TOOL])
+
+    [call] = bound.invoke([HumanMessage(content=message)]).tool_calls
+
+    assert call["name"] == "a_tool"
+
+
+def test_code_goes_to_the_first_tool_when_review_code_is_not_bound(
+    model: FakeToolCallingChatModel,
+) -> None:
+    bound = model.bind_tools([TOOL])
+
+    [call] = bound.invoke([HumanMessage(content=SNIPPET)]).tool_calls
+
+    assert call["name"] == "a_tool"
