@@ -108,3 +108,17 @@ async def test_messages_do_not_leak_the_helpers_own_config() -> None:
     [message] = await real_linter().lint("const unused = 2;", "snippet.ts")
 
     assert message.message == "'unused' is assigned a value but never used."
+
+
+@requires_linter
+@pytest.mark.anyio
+async def test_security_rules_run_on_a_snippet() -> None:
+    code = (
+        'export function Html({ html }: { html: string }) {\n'
+        '  eval("1");\n'
+        '  return <div dangerouslySetInnerHTML={{ __html: html }} />;\n'
+        "}"
+    )
+    rules = {m.rule_id for m in await real_linter().lint(code, "snippet.tsx")}
+
+    assert {"no-eval", "react/no-danger"} <= rules

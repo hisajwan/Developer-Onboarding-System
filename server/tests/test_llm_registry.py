@@ -37,14 +37,16 @@ def test_gemini_embedder_without_a_key_is_a_configuration_error() -> None:
         create_embedder(settings)
 
 
-@pytest.mark.anyio
-async def test_gemini_embeddings_are_not_implemented_yet() -> None:
-    embedder = GeminiEmbedder.from_settings(
-        Settings(embedding_provider="gemini", gemini_api_key=SecretStr("k"), _env_file=None)
+def test_gemini_embedder_uses_the_configured_model_name() -> None:
+    settings = Settings(
+        embedding_provider="gemini",
+        gemini_api_key=SecretStr("k"),
+        gemini_embedding_model="gemini-embedding-2",
+        _env_file=None,
     )
 
-    with pytest.raises(NotImplementedError):
-        await embedder.embed_query("hello")
+    # The name goes into chunk ids and the index signature, so a model change re-indexes.
+    assert create_embedder(settings).model_name == "gemini-embedding-2"
 
 
 def test_gemini_client_is_built_when_key_is_present() -> None:

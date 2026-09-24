@@ -27,6 +27,15 @@ class Settings(BaseSettings):
     embedding_provider: EmbeddingProviderName = "fake"
     caption_provider: CaptionProviderName = "fake"
     gemini_api_key: SecretStr | None = None
+    # Gemini models (see https://aistudio.google.com/rate-limit). One text model does answers,
+    # review judgement, tool choice and captions; the fallback (own quota) is used on rate limits.
+    gemini_model: str = "gemini-3.5-flash-lite"
+    gemini_fallback_model: str | None = "gemini-3.1-flash-lite"
+    gemini_embedding_model: str = "gemini-embedding-001"
+    # Embedding calls are sent in groups under this many (estimated) tokens per minute.
+    gemini_embedding_tokens_per_minute: int = 30_000
+    gemini_timeout_seconds: float = 60.0
+    gemini_max_retries: int = 1
     groq_api_key: SecretStr | None = None
     openrouter_api_key: SecretStr | None = None
 
@@ -41,8 +50,9 @@ class Settings(BaseSettings):
     max_upload_bytes: int = 10 * 1024 * 1024
     chunk_max_tokens: int = 500
     chunk_overlap_tokens: int = 50
-    # Skip PDF images smaller than this (spacers, icons) and cap how many are captioned per file.
-    min_image_dimension_px: int = 32
+    # Skip images smaller than this on their shortest side (icons, avatars) and cap how many are
+    # captioned per file.
+    min_image_dimension_px: int = 100
     max_images_per_document: int = 20
 
     # Ask mode: how many chunks retrieve_and_answer feeds to the model per question.

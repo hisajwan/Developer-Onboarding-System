@@ -90,29 +90,38 @@ flowchart LR
     E --> S[Upsert into Chroma<br/>+ record in SQLite + save file]
 ```
 
-- Idempotent: chunk ids are a hash of embedding model + project + source + position + kind + text, so re-uploading the
-  same file costs no embedding calls, and a changed file only embeds its changed chunks. Stale chunks are removed.
+- File names count: each chunk is embedded with its readable file name (the stored text is unchanged), so a question
+  can match what a file is named, not only what it says.
+- Idempotent: chunk ids are a hash of embedding model + input format + project + source + position + kind + text, so
+  re-uploading the same file costs no embedding calls, and a changed file only embeds its changed chunks. Stale chunks
+  are removed.
 - Deleting a document removes it from the registry, Chroma and disk together.
 
 ### Ask (chat)
 
 1. `ChatService` loads the session's latest 50 messages and passes them to the agent as conversational memory.
 2. The LangChain tool-calling agent picks one tool from the tools' descriptions: `retrieve_and_answer` for questions,
-   `review_code` for pasted code.
+   `review_code` for pasted code. The tool's result is returned as the reply directly (the model is not called a
+   second time to restate it), so a question costs one tool-choice call plus the tool's own calls.
 3. `retrieve_and_answer` embeds the question, searches the project's chunks in Chroma (top 4, cosine), and asks the LLM
-   to answer from that context only, returning the source filenames as citations. If the project has nothing indexed
-   it says so without calling the LLM; otherwise the LLM is told to say it doesn't know when the context lacks the
-   answer. (There is no relevance threshold: the top 4 chunks are always used.)
+   to answer from those excerpts only, in Markdown, labelled by file name, saying which file each fact comes from. The
+   model ends with a `SOURCES:` line naming the files it used; the tool strips it and cites only those (none when the
+   documents don't cover the question; all retrieved files if the model omits the line). If the project has nothing
+   indexed it says so without calling the LLM. (There is no relevance threshold: the top 4 chunks are always used.)
 4. The user message and the reply are saved to the session.
 
 ### Code review
 
 1. The snippet goes to the ESLint helper (`server/lint/lint-snippet.mjs`, Node, run as a subprocess with JSON in and
-   out): typescript-eslint parser, `jsx-a11y` recommended rules, React Hooks rules, a few React and core style rules.
+   out): typescript-eslint parser, `jsx-a11y` recommended rules, React Hooks rules, a few React and core style rules,
+   and security rules (`eval` and friends, `dangerouslySetInnerHTML`, `javascript:` URLs, unsafe `target="_blank"`).
    No project config or import resolution is needed.
-2. Lint rules map to categories: `jsx-a11y/*` is **accessibility**, everything else **style**.
+2. Lint rules map to categories: `jsx-a11y/*` is **accessibility**, the security rules above are **security**,
+   everything else **style**.
 3. The LLM gets the code plus the lint findings and is asked, as JSON, only for what ESLint can't see: missing
-   **tests**, accessibility semantics, readability. It is told not to invent issues.
+   **tests**, **security** problems such as leaked secrets, accessibility semantics, readability. Missing imports are
+   not issues (snippets are standalone), and it may add to an ESLint finding whose real impact is worse (e.g. a
+   `console.log` of a password).
 4. If the model's reply is not valid review JSON, the result falls back to the ESLint findings and says so
    (`judgement_available: false`). A snippet that doesn't parse is reported and the model is not called.
 
@@ -126,21 +135,37 @@ Shared state is held by providers in the `(app)` layout, nested
 `ProjectProvider > ProjectDocumentsProvider > ChatSessionProvider > ChatProvider`: the current project, its documents,
 its chat sessions and the current conversation. All HTTP goes through `src/lib/api/http.ts`.
 
+What is restored after a reload: the current project comes from the server (`last_project_id`); the chat session last
+open in each project is remembered in the browser's localStorage (`last-chat-session:<project id>`), falling back to
+the first session if it no longer exists or storage is unavailable; panel collapse states are also localStorage.
+
 ## Model providers: current status
 
 | Port | Used for | `fake` | Real adapters |
 |---|---|---|---|
-| `Embedder` | Chunk and query embeddings | Hashes words into 256-d vectors (shared words = similar) | Gemini `gemini-embedding-001`: **stub, not implemented** |
-| `ImageCaptioner` | Captions for images at ingestion | Describes the image by type, size and hash | Gemini vision: **stub, not implemented** |
-| `LLMClient` | Answers, review judgement | Echoes the prompt | Gemini, Groq, OpenRouter: **stubs, not implemented** |
-| Chat model (LangChain) | The agent's tool choice | Code-looking input to `review_code`, else the first tool | Gemini, Groq, OpenRouter: **stubs, not implemented** |
+| `Embedder` | Chunk and query embeddings | Hashes words into 256-d vectors (shared words = similar) | **Gemini** (`GEMINI_EMBEDDING_MODEL`, default `gemini-embedding-001`) |
+| `ImageCaptioner` | Captions for images at ingestion | Describes the image by type, size and hash | **Gemini** vision (`GEMINI_MODEL`) |
+| `LLMClient` | Answers, review judgement | Echoes the prompt | **Gemini** (`GEMINI_MODEL`); Groq, OpenRouter: stubs, not implemented |
+| Chat model (LangChain) | The agent's tool choice | Code-looking input to `review_code`, else the first tool | **Gemini** (`GEMINI_MODEL`); Groq, OpenRouter: stubs, not implemented |
 
-Everything runs on the `fake` providers today, with no API keys and no network. Selecting a real provider currently
-fails with "not implemented yet". ESLint is real in every mode: it runs locally and needs no API key.
+`fake` is the default: no API keys, no network. With `gemini`, all Gemini adapters share one chat model setup
+(`app/infrastructure/gemini/`):
+
+- **One text model** (`GEMINI_MODEL`) answers questions, judges code, picks the agent's tool and captions images.
+- **Fallback model** (`GEMINI_FALLBACK_MODEL`, optional): if the main model returns a rate-limit or quota error, the
+  same request is retried once on the fallback, which has its own separate free quota.
+- **Errors** become the app's own: a rate limit is `429 model_rate_limited`; a rejected key, unknown model or outage
+  is `502 model_provider_error` with a readable message.
+- **Embeddings** are sent in groups that stay under `GEMINI_EMBEDDING_TOKENS_PER_MINUTE`, pausing a minute between
+  groups, so a large upload is slower rather than rejected.
+- Each embedding model has its **own Chroma collection**, because vectors of different sizes can't share one.
+  Switching `EMBEDDING_PROVIDER` or the embedding model starts from an empty index; re-upload the documents.
+
+ESLint is real in every mode: it runs locally and needs no API key.
 
 ## Known limitations
 
-- **Real model providers are not implemented** (see the table above); the app runs end to end only on `fake`.
+- **Groq and OpenRouter are not implemented**; Gemini is the only real provider.
 - **Dashboard** shows sample data; usage is not recorded yet, so there are no real stats.
 - **Retrieval** always uses the top 4 chunks, with no relevance threshold; unrelated questions still reach the model,
   which is told to say it doesn't know.

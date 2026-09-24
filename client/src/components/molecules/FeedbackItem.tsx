@@ -4,6 +4,7 @@ import type { ReviewCategory, ReviewFinding } from "@/types/review";
 
 const CATEGORY_TONE: Record<ReviewCategory, BadgeTone> = {
   accessibility: "warning",
+  security: "accent",
   test: "danger",
   style: "primary",
 };

@@ -16,7 +16,8 @@ class ReviewCodeTool:
     name = "review_code"
     description = (
         "Reviews a pasted React, TypeScript or JavaScript code snippet: runs ESLint on it and "
-        "returns categorised feedback (accessibility, test coverage, style). Use this whenever "
+        "returns categorised feedback (accessibility, security, test coverage, style). Use this "
+        "whenever "
         "the message contains source code to review, critique, check or improve. Do not use it "
         "for questions about the project's documentation."
     )
@@ -36,13 +37,14 @@ def extract_code(text: str) -> str:
 
 
 def format_review(review: CodeReview) -> str:
+    """The review as Markdown: the summary, then one bullet per finding."""
     if review.parse_error:
-        return f"{review.summary}\n\nParse error: {review.parse_error}"
-    lines = [review.summary]
+        return f"{review.summary}\n\n**Parse error:** {review.parse_error}"
+    if not review.findings:
+        return f"{review.summary}\n\nNo issues found."
+    lines = [review.summary, ""]
     for finding in review.findings:
         where = f"line {finding.line}: " if finding.line else ""
-        rule = f" ({finding.rule_id})" if finding.rule_id else ""
-        lines.append(f"- [{finding.category}] {where}{finding.message}{rule}")
-    if not review.findings:
-        lines.append("No issues found.")
+        rule = f" (`{finding.rule_id}`)" if finding.rule_id else ""
+        lines.append(f"- **{finding.category}** · {where}{finding.message}{rule}")
     return "\n".join(lines)

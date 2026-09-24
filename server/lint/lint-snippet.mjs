@@ -42,6 +42,13 @@ const config = [
       "no-var": "warn",
       "no-console": "warn",
       "no-debugger": "error",
+      // Security: code execution from strings, raw HTML, javascript: URLs.
+      "no-eval": "error",
+      "no-implied-eval": "error",
+      "no-new-func": "error",
+      "no-script-url": "error",
+      "react/no-danger": "warn",
+      "react/jsx-no-script-url": "error",
     },
   },
 ];

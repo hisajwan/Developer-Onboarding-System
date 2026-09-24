@@ -107,7 +107,7 @@ async def test_a_reply_wrapped_in_a_code_fence_is_still_read() -> None:
 async def test_findings_with_an_unknown_category_or_no_message_are_dropped() -> None:
     reply = judgement(
         "Mixed.",
-        {"category": "security", "message": "Not a category we show."},
+        {"category": "performance", "message": "Not a category we show."},
         {"category": "style", "message": "   "},
         {"category": "style", "message": "Kept.", "line": -3},
         "not an object",
@@ -153,3 +153,28 @@ async def test_the_language_picks_the_lint_filename_and_lint_output_reaches_the_
     assert "Language: js" in prompt
     assert "line 3: img elements must have an alt prop. (jsx-a11y/alt-text)" in prompt
     assert prompt.endswith("const a = 1;")
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "rule", ["react/jsx-no-target-blank", "no-eval", "react/no-danger", "react/jsx-no-script-url"]
+)
+async def test_security_lint_rules_are_filed_under_security(rule: str) -> None:
+    service, _, _ = make([LintMessage(rule, "unsafe", 4, 1, "warning")], judgement("x"))
+
+    [finding] = (await service.review("code")).findings
+
+    assert finding.category == "security"
+
+
+@pytest.mark.anyio
+async def test_the_model_can_raise_a_security_finding() -> None:
+    reply = judgement(
+        "The password is written to the console.",
+        {"category": "security", "message": "Logs the plaintext password.", "line": 14},
+    )
+    service, _, _ = make([], reply)
+
+    [finding] = (await service.review("code")).findings
+
+    assert (finding.category, finding.source, finding.line) == ("security", "model", 14)

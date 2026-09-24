@@ -1,4 +1,4 @@
-export type ReviewCategory = "accessibility" | "test" | "style";
+export type ReviewCategory = "accessibility" | "security" | "test" | "style";
 
 export type SnippetLanguage = "tsx" | "ts" | "jsx" | "js";
 

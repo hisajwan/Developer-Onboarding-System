@@ -3,14 +3,16 @@
 import hashlib
 
 from app.domain.models import Chunk
+from app.ingestion.embedding_input import EMBEDDING_INPUT_VERSION
 
 _SEPARATOR = "\x1f"  # keeps neighbouring parts from blurring together
 
 
 def chunk_id(model: str, project_id: str, chunk: Chunk) -> str:
-    """Hash of the embedding model, project, source, position, kind and text of a chunk."""
+    """Hash of the embedding model and input format, project, source, position, kind and text."""
     parts = [
         model,
+        EMBEDDING_INPUT_VERSION,
         project_id,
         chunk.source,
         str(chunk.index),

@@ -140,8 +140,8 @@ def test_a_pasted_snippet_is_routed_to_code_review(
     body = ask(auth_client, project_id, chat_session_id, snippet).json()
 
     assert body["tools_used"] == ["review_code"]
-    assert "[accessibility] line 2:" in body["reply"]
-    assert "(jsx-a11y/alt-text)" in body["reply"]
+    assert "**accessibility** · line 2:" in body["reply"]
+    assert "(`jsx-a11y/alt-text`)" in body["reply"]
     assert body["sources"] == []
 
 
@@ -151,3 +151,17 @@ def test_a_question_next_to_code_tools_still_goes_to_the_docs(
     body = ask(auth_client, project_id, chat_session_id, "Which function handles login?").json()
 
     assert body["tools_used"] == ["retrieve_and_answer"]
+
+
+def test_an_answers_citations_come_back_with_the_history(
+    auth_client: TestClient, project_id: str, chat_session_id: str
+) -> None:
+    upload(auth_client, project_id, "dev-setup.md", GUIDE)
+    ask(auth_client, project_id, chat_session_id, "How do I set up the dev environment?")
+
+    messages = auth_client.get(history_url(project_id, chat_session_id)).json()["messages"]
+
+    assert [(m["role"], m["sources"]) for m in messages] == [
+        ("user", []),
+        ("assistant", ["dev-setup.md"]),
+    ]

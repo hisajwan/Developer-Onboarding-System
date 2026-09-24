@@ -5,6 +5,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { APP_NAME } from "@/config/app";
 import { PROJECT_EXEMPT_ROUTES } from "@/config/projectRoutes";
 import { cn } from "@/lib/cn";
+import { readStored, writeStored } from "@/lib/storage";
 
 const SIDEBAR_COLLAPSE_KEY = "sidebar-collapsed";
 const DOCS_COLLAPSE_KEY = "docs-panel-collapsed";
@@ -18,16 +19,9 @@ function useCollapsible(storageKey: string, defaultNarrowBelowPx: number) {
 
   useEffect(() => {
     function applyInitial() {
-      try {
-        const stored = window.localStorage.getItem(storageKey);
-        if (stored !== null) {
-          setIsCollapsed(stored === "true");
-          return;
-        }
-      } catch {
-        // Falls through to the width-based default (private mode, blocked storage, etc.).
-      }
-      setIsCollapsed(window.innerWidth < defaultNarrowBelowPx);
+      const stored = readStored(storageKey);
+      // Nothing stored (first visit, or storage blocked): fall back to the width-based default.
+      setIsCollapsed(stored !== null ? stored === "true" : window.innerWidth < defaultNarrowBelowPx);
     }
     applyInitial();
     // storageKey/defaultNarrowBelowPx are constants passed by the caller, not reactive inputs.
@@ -37,11 +31,7 @@ function useCollapsible(storageKey: string, defaultNarrowBelowPx: number) {
   function toggle() {
     setIsCollapsed((current) => {
       const next = !current;
-      try {
-        window.localStorage.setItem(storageKey, String(next));
-      } catch {
-        // Per-viewer convenience only; losing the preference is fine.
-      }
+      writeStored(storageKey, String(next));
       return next;
     });
   }

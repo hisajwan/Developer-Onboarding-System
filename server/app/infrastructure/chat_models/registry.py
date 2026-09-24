@@ -6,22 +6,22 @@ means one adapter class here plus one line, same recipe as the other provider re
 
 from collections.abc import Callable
 
-from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.runnables import Runnable
 
 from app.core.config import Settings
 from app.infrastructure.chat_models.fake import FakeToolCallingChatModel
-from app.infrastructure.chat_models.gemini import GeminiToolCallingChatModel
+from app.infrastructure.chat_models.gemini import create_gemini_chat_model
 from app.infrastructure.chat_models.groq import GroqToolCallingChatModel
 from app.infrastructure.chat_models.openrouter import OpenRouterToolCallingChatModel
 from app.infrastructure.provider_registry import build_provider
 
-_PROVIDERS: dict[str, Callable[[Settings], BaseChatModel]] = {
+_PROVIDERS: dict[str, Callable[[Settings], Runnable]] = {
     "fake": FakeToolCallingChatModel.from_settings,
-    "gemini": GeminiToolCallingChatModel.from_settings,
+    "gemini": create_gemini_chat_model,
     "groq": GroqToolCallingChatModel.from_settings,
     "openrouter": OpenRouterToolCallingChatModel.from_settings,
 }
 
 
-def create_chat_model(settings: Settings) -> BaseChatModel:
+def create_chat_model(settings: Settings) -> Runnable:
     return build_provider("Chat model", settings.llm_provider, _PROVIDERS, settings)

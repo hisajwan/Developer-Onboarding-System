@@ -19,7 +19,7 @@ class ChatService:
         past = await self._history.list_for_session(self._session_id)
         reply = await self._agent.run(request.message, past)
         await self._history.append(self._session_id, "user", request.message)
-        await self._history.append(self._session_id, "assistant", reply.content)
+        await self._history.append(self._session_id, "assistant", reply.content, reply.sources)
         return ChatResponse(
             reply=reply.content,
             sources=list(reply.sources),

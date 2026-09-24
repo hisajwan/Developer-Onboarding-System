@@ -1,6 +1,10 @@
 import pytest
 
-from app.agent.tools.retrieve_and_answer import NO_MATCH_MESSAGE, RetrieveAndAnswerTool
+from app.agent.tools.retrieve_and_answer import (
+    NO_MATCH_MESSAGE,
+    RetrieveAndAnswerTool,
+    split_sources,
+)
 from app.domain.ports import Tool
 from app.infrastructure.embeddings.fake import FakeEmbedder
 from app.infrastructure.llm.fake import FakeLLMClient
@@ -120,3 +124,69 @@ async def test_the_system_prompt_tells_the_model_not_to_guess(
     await tool.run("How do I set up the dev environment?")
 
     assert "Question: How do I set up the dev environment?" in llm.calls[0]
+
+
+class ScriptedLLM:
+    def __init__(self, reply: str) -> None:
+        self._reply = reply
+        self.prompts: list[str] = []
+
+    async def generate(self, prompt: str, *, system: str | None = None) -> str:
+        self.prompts.append(prompt)
+        return self._reply
+
+
+RETRIEVED = ("README.md", "Architecture.pdf", "Competitor Aegis zero knowledge.png")
+
+
+@pytest.mark.parametrize(
+    ("reply", "answer", "sources"),
+    [
+        ("Ente is X.\n\nSOURCES: README.md", "Ente is X.", ("README.md",)),
+        ("The docs don't cover it.\nSOURCES: none", "The docs don't cover it.", ()),
+        (
+            "A.\n**Sources:** `Architecture.pdf`, Competitor Aegis zero knowledge.png",
+            "A.",
+            ("Architecture.pdf", "Competitor Aegis zero knowledge.png"),
+        ),
+        ("B.\nsources: [readme.md], invented.md", "B.", ("README.md",)),
+        ("No sources line at all.", "No sources line at all.", RETRIEVED),
+    ],
+)
+def test_split_sources_cites_only_the_retrieved_files_the_model_names(
+    reply: str, answer: str, sources: tuple[str, ...]
+) -> None:
+    assert split_sources(reply, RETRIEVED) == (answer, sources)
+
+
+@pytest.mark.anyio
+async def test_a_dont_know_answer_cites_nothing(
+    embedder: FakeEmbedder, vectors: InMemoryVectorStore
+) -> None:
+    await index_texts(vectors, embedder, [("README.md", "Ente stores photos.")])
+    llm = ScriptedLLM("The documents don't say who the competitor is.\nSOURCES: none")
+    tool = RetrieveAndAnswerTool(embedder, vectors, llm, PROJECT_ID, top_k=2)
+
+    result = await tool.run("Who is the competitor?")
+
+    assert result.content == "The documents don't say who the competitor is."
+    assert result.sources == ()
+
+
+@pytest.mark.anyio
+async def test_each_excerpt_is_labelled_with_its_file_kind_and_page(
+    embedder: FakeEmbedder, vectors: InMemoryVectorStore
+) -> None:
+    await index_texts(
+        vectors,
+        embedder,
+        [("Competitor Aegis.png", "A diagram of a client and a server.", 0, True, 1)],
+    )
+    llm = ScriptedLLM("Answer.\nSOURCES: Competitor Aegis.png")
+    tool = RetrieveAndAnswerTool(embedder, vectors, llm, PROJECT_ID, top_k=2)
+
+    result = await tool.run("What does the diagram show?")
+
+    [prompt] = llm.prompts
+    assert "[1] File: Competitor Aegis.png (image description, page 1)" in prompt
+    assert result.sources == ("Competitor Aegis.png",)

@@ -20,10 +20,16 @@ class ChatMessageResponse(BaseModel):
     role: Literal["user", "assistant"]
     content: str
     created_at: datetime
+    sources: list[str] = []
 
     @classmethod
     def from_domain(cls, message: ChatMessage) -> "ChatMessageResponse":
-        return cls(role=message.role, content=message.content, created_at=message.created_at)
+        return cls(
+            role=message.role,
+            content=message.content,
+            created_at=message.created_at,
+            sources=list(message.sources),
+        )
 
 
 class ChatHistoryResponse(BaseModel):

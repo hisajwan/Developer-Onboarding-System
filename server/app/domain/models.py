@@ -109,6 +109,7 @@ class ChatMessage:
     role: ChatRole
     content: str
     created_at: datetime
+    sources: tuple[str, ...] = ()  # the files an assistant answer cited
 
 
 @dataclass(frozen=True, slots=True)
@@ -124,7 +125,7 @@ class AgentReply:
     tools_used: tuple[str, ...] = field(default_factory=tuple)
 
 
-ReviewCategory = Literal["accessibility", "test", "style"]
+ReviewCategory = Literal["accessibility", "security", "test", "style"]
 ReviewSeverity = Literal["error", "warning", "suggestion"]
 ReviewSource = Literal["eslint", "model"]
 SnippetLanguage = Literal["tsx", "ts", "jsx", "js"]

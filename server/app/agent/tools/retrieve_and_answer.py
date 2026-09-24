@@ -1,13 +1,40 @@
-"""The Ask-mode tool: answers a question from the indexed docs, citing the sources it used."""
+"""The Ask-mode tool: answers a question from the indexed docs, citing the sources it used.
 
-from app.domain.models import ToolResult
+The model is asked to end its answer with a `SOURCES:` line naming only the files it actually
+used; the tool strips that line and cites exactly those (so an "I don't know" cites nothing). If a
+model forgets the line, every retrieved file is cited, as before.
+"""
+
+import re
+
+from app.domain.models import RetrievedChunk, ToolResult
 from app.domain.ports import Embedder, LLMClient, VectorStore
 
-_SYSTEM_PROMPT = (
-    "Answer the question using only the context below, which comes from the project's own "
-    "documentation. If the context does not contain the answer, say plainly that you don't have "
-    "that information instead of guessing. Do not use outside knowledge."
+_SYSTEM_PROMPT = "\n".join(
+    [
+        "You answer a developer's question about their project using only the excerpts below, "
+        "which come from the project's own documents. Do not use outside knowledge.",
+        "",
+        "- Each excerpt is labelled with its file name. File names can carry meaning on their own "
+        '(a file called "Competitor X architecture" describes a competitor), so take them into '
+        "account.",
+        "- Answer in your own words. Summarise; do not copy whole documents, quote only short key "
+        "parts.",
+        "- When facts come from different files, say which file each comes from. Never merge facts "
+        "about different products or systems (for example a competitor's design and this "
+        "project's) into one description.",
+        "- If the excerpts do not contain the answer, say plainly that the documents don't cover "
+        "it. Do not guess.",
+        "- Format with Markdown where it helps: short paragraphs, bullet lists, `code` for "
+        "identifiers. Refer to files by name; never mention excerpt numbers like [1].",
+        "- End with one final line, exactly: SOURCES: followed by the file names you actually "
+        "used, comma-separated, or SOURCES: none if you used none.",
+    ]
 )
+
+# A final "SOURCES: a.md, b.pdf" line, tolerating Markdown decoration such as "**Sources:**".
+_SOURCES_LINE = re.compile(r"^[ \t>*_`#-]*sources\W*:(?P<names>.*)$", re.IGNORECASE | re.MULTILINE)
+_NAME_EDGES = re.compile(r"^[\s`'\"*_\[\]()]+|[\s`'\"*_\[\]()]+$")
 
 NO_MATCH_MESSAGE = "I couldn't find anything about that in the indexed docs."
 
@@ -43,10 +70,35 @@ class RetrieveAndAnswerTool:
         if not retrieved:
             return ToolResult(content=NO_MATCH_MESSAGE)
 
-        sources = tuple(dict.fromkeys(result.chunk.source for result in retrieved))
-        context = "\n\n".join(
-            f"From {result.chunk.source}:\n{result.chunk.text}" for result in retrieved
-        )
-        prompt = f"Context:\n{context}\n\nQuestion: {question}"
-        answer = await self._llm.generate(prompt, system=_SYSTEM_PROMPT)
+        retrieved_sources = tuple(dict.fromkeys(result.chunk.source for result in retrieved))
+        context = "\n\n".join(_excerpt(n, result) for n, result in enumerate(retrieved, start=1))
+        prompt = f"Excerpts:\n\n{context}\n\nQuestion: {question}"
+        reply = await self._llm.generate(prompt, system=_SYSTEM_PROMPT)
+        answer, sources = split_sources(reply, retrieved_sources)
         return ToolResult(content=answer, sources=sources)
+
+
+def _excerpt(number: int, result: RetrievedChunk) -> str:
+    chunk = result.chunk
+    kind = "image description" if chunk.is_image_caption else "text"
+    page = f", page {chunk.page}" if chunk.page else ""
+    return f"[{number}] File: {chunk.source} ({kind}{page})\n{chunk.text}"
+
+
+def split_sources(reply: str, retrieved: tuple[str, ...]) -> tuple[str, tuple[str, ...]]:
+    """The answer without its SOURCES line, and the retrieved files that line names.
+
+    Names the model made up are dropped (only retrieved files can be cited). No SOURCES line at all
+    means every retrieved file is cited; "none" means no citation.
+    """
+    matches = list(_SOURCES_LINE.finditer(reply))
+    if not matches:
+        return reply.strip(), retrieved
+    last = matches[-1]
+    answer = (reply[: last.start()] + reply[last.end() :]).strip()
+    named = {_normalise(name) for name in last.group("names").split(",")}
+    return answer, tuple(source for source in retrieved if _normalise(source) in named)
+
+
+def _normalise(name: str) -> str:
+    return _NAME_EDGES.sub("", name).lower()

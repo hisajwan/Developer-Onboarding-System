@@ -23,8 +23,8 @@ export function ReviewFeedbackPanel({ code, review }: ReviewedSnippet) {
       )}
       {!review.judgement_available && !review.parse_error && (
         <p role="status" className="text-xs text-muted">
-          The model&apos;s review was not available, so only ESLint results are shown (accessibility and
-          style rules; test coverage needs the model).
+          The model&apos;s review was not available, so only ESLint results are shown (accessibility,
+          security and style rules; test coverage needs the model).
         </p>
       )}
     </div>

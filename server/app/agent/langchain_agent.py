@@ -7,9 +7,9 @@ sharp `description`, and the model (or the fake, for one tool) picks it up autom
 from collections.abc import Sequence
 
 from langchain.agents import AgentExecutor, create_tool_calling_agent
-from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.runnables import Runnable
 from langchain_core.tools import StructuredTool
 
 from app.agent.tools.registry import ToolRegistry
@@ -33,7 +33,8 @@ _PROMPT = ChatPromptTemplate.from_messages(
 
 
 class LangChainAgent:
-    def __init__(self, tools: ToolRegistry, chat_model: BaseChatModel) -> None:
+    def __init__(self, tools: ToolRegistry, chat_model: Runnable) -> None:
+        """`chat_model` is a tool-calling chat model, or one wrapped with fallbacks."""
         self._tools = tools
         self._chat_model = chat_model
 
@@ -69,6 +70,7 @@ def _as_langchain_tool(tool: Tool, calls: list[tuple[str, ToolResult]]) -> Struc
         calls.append((tool.name, result))
         return result.content
 
+    # The tool's result is the reply, so the model isn't called again to restate it.
     return StructuredTool.from_function(
-        coroutine=call, name=tool.name, description=tool.description
+        coroutine=call, name=tool.name, description=tool.description, return_direct=True
     )

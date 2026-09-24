@@ -1,9 +1,7 @@
 """Reviews one pasted React/TypeScript snippet: ESLint first, then the model's judgement.
 
-ESLint catches what rules can see (missing alt text, missing keys, unused variables). The model
-adds what they can't (missing tests, readability, accessibility semantics) and is told not to
-repeat lint findings or invent issues. If its reply is not the JSON asked for, the review falls
-back to the ESLint findings alone and says so, rather than failing or guessing.
+The model adds what lint rules can't see (missing tests, leaked secrets, accessibility semantics).
+If its reply isn't the JSON asked for, the review falls back to the ESLint findings and says so.
 """
 
 import json
@@ -20,16 +18,45 @@ from app.domain.ports import CodeLinter, LLMClient
 
 _CATEGORIES: tuple[str, ...] = get_args(ReviewCategory)
 
-_SYSTEM_PROMPT = (
-    "You review a single React / TypeScript / JavaScript snippet for a developer. ESLint has "
-    "already run; its findings are listed and shown to the user, so do not repeat them. Add only "
-    "issues ESLint cannot detect, in three categories: 'accessibility' (semantics, labels, "
-    "keyboard use, ARIA), 'test' (what behaviour lacks tests, only for code with real logic) and "
-    "'style' (readability, naming, React idioms). Every issue must point at something actually in "
-    "the snippet. If the code is fine, return no findings: never invent issues to fill the list. "
-    "Reply with JSON only, no prose and no code fences, exactly in this shape: "
-    '{"summary": "<one sentence>", "findings": [{"category": "accessibility|test|style", '
-    '"message": "<what and why, one or two sentences>", "line": <line number or null>}]}'
+# ESLint rules whose findings are security problems; everything else outside jsx-a11y is style.
+_SECURITY_RULES = frozenset(
+    {
+        "no-eval",
+        "no-implied-eval",
+        "no-new-func",
+        "no-script-url",
+        "react/no-danger",
+        "react/jsx-no-script-url",
+        "react/jsx-no-target-blank",
+    }
+)
+
+_SYSTEM_PROMPT = "\n".join(
+    [
+        "You review a single React / TypeScript / JavaScript snippet for a developer.",
+        "",
+        "- The snippet is standalone: imports, helper functions, types and APIs it uses may be "
+        "defined elsewhere in the project. Never report something only because it is not defined "
+        "or imported in the snippet.",
+        "- ESLint has already run; its findings are listed and shown to the user. Do not restate "
+        "them. But if an ESLint finding hides a more serious problem than its message says (for "
+        "example a generic console statement that logs a password or token), add your own finding "
+        "on that line explaining the real impact.",
+        "- Otherwise add only issues ESLint cannot detect, in four categories: 'accessibility' "
+        "(semantics, labels, keyboard use, ARIA, announcing errors), 'security' (leaking secrets "
+        "or personal data, unsafe HTML, injection, insecure storage or transport, weak "
+        "validation), 'test' (behaviour that lacks tests, only for code with real logic) and "
+        "'style' (readability, naming, error handling, React idioms).",
+        "- Every issue must point at something actually in the snippet. If the code is fine, "
+        "return no findings: never invent issues to fill the list.",
+        "- The summary is one sentence that reflects the most serious finding, and does not call "
+        "a security problem minor.",
+        "",
+        "Reply with JSON only, no prose and no code fences, exactly in this shape: "
+        '{"summary": "<one sentence>", "findings": [{"category": '
+        '"accessibility|security|test|style", "message": "<what and why, one or two sentences>", '
+        '"line": <line number or null>}]}',
+    ]
 )
 
 
@@ -71,7 +98,13 @@ class CodeReviewService:
 
 def _from_lint(message: LintMessage) -> ReviewFinding:
     rule = message.rule_id or ""
-    category: ReviewCategory = "accessibility" if rule.startswith("jsx-a11y/") else "style"
+    category: ReviewCategory
+    if rule.startswith("jsx-a11y/"):
+        category = "accessibility"
+    elif rule in _SECURITY_RULES:
+        category = "security"
+    else:
+        category = "style"
     return ReviewFinding(
         category=category,
         message=message.message,

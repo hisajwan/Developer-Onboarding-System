@@ -41,18 +41,20 @@ def test_format_lists_each_finding_with_category_line_and_rule() -> None:
     text = format_review(CodeReview((FINDING,), "One issue.", True))
 
     assert text == (
-        "One issue.\n- [accessibility] line 3: img elements must have an alt prop. "
-        "(jsx-a11y/alt-text)"
+        "One issue.\n\n- **accessibility** · line 3: img elements must have an alt prop. "
+        "(`jsx-a11y/alt-text`)"
     )
 
 
 def test_format_says_so_when_there_is_nothing_to_report() -> None:
-    assert format_review(CodeReview((), "Looks good.", True)) == "Looks good.\nNo issues found."
+    assert format_review(CodeReview((), "Looks good.", True)) == "Looks good.\n\nNo issues found."
 
 
 def test_format_reports_a_parse_error() -> None:
     review = CodeReview((), "Could not be parsed.", False, parse_error="';' expected. (line 1)")
-    assert format_review(review) == "Could not be parsed.\n\nParse error: ';' expected. (line 1)"
+    assert format_review(review) == (
+        "Could not be parsed.\n\n**Parse error:** ';' expected. (line 1)"
+    )
 
 
 @pytest.mark.anyio
@@ -62,5 +64,5 @@ async def test_run_reviews_the_extracted_code_and_has_no_sources() -> None:
     result = await ReviewCodeTool(reviewer).run("Review:\n```\n<img src={a} />\n```")
 
     assert reviewer.calls == ["<img src={a} />"]
-    assert "[accessibility]" in result.content
+    assert "**accessibility**" in result.content
     assert result.sources == ()

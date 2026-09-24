@@ -20,6 +20,8 @@
   --color-warning: #a06a00;
   --color-danger-soft: #fdd8d8;
   --color-danger: #c03030;
+  --color-accent-soft: #f1dcf5;
+  --color-accent: #7a2a8c;
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);

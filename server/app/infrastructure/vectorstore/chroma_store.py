@@ -1,17 +1,22 @@
 """Chroma-backed vector store. Persistent on disk, so chunks survive a backend restart.
 
-One shared collection: every chunk is tagged with a `project_id` in its metadata, and every
-query/delete filters on it. This keeps retrieval scoped per project without a collection per
-project.
+One collection per embedding model (a collection's vector size is fixed by its first insert),
+shared by all projects: every chunk carries a `project_id` and every query/delete filters on it.
 """
 
 import asyncio
+import re
 from pathlib import Path
 
 import chromadb
 from chromadb.config import Settings as ChromaSettings
 
 from app.domain.models import Chunk, ChunkRecord, RetrievedChunk
+
+
+def collection_name_for(embedding_model: str) -> str:
+    """A valid Chroma collection name (3-512 chars of [a-zA-Z0-9._-]) for one embedding model."""
+    return "documents-" + re.sub(r"[^a-zA-Z0-9._-]+", "-", embedding_model).strip("-._")
 
 
 def _to_metadata(project_id: str, chunk: Chunk) -> dict:

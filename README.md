@@ -25,10 +25,10 @@ docs/          architecture, database, API, configuration, development
 - **Projects**: each user has their own projects. A project's documents and answers never mix with another project's.
 - **Project docs**: upload Markdown, text, PDF or image files per project; they are chunked, embedded and indexed
   (images and PDF diagrams are captioned first). Re-uploading an unchanged file is skipped; files can be deleted.
-- **Ask**: chat about the project's docs, with the source files cited. Each project can have several chat sessions;
+- **Ask**: chat about the project's docs; answers are formatted (Markdown) and cite only the files they used. Each project can have several chat sessions;
   they share the project's docs but keep separate history. Pasting code into the chat routes it to code review.
-- **Code review**: paste a React / TypeScript / JavaScript snippet and get categorised feedback (accessibility, test,
-  style) from ESLint plus the model's judgement.
+- **Code review**: paste a React / TypeScript / JavaScript snippet and get categorised feedback (accessibility, security,
+  test, style) from ESLint plus the model's judgement.
 - **Dashboard**: usage overview (sample data for now).
 
 ## Run it
@@ -67,9 +67,10 @@ Every provider defaults to `fake` (`LLM_PROVIDER`, `EMBEDDING_PROVIDER`, `CAPTIO
 app runs with no API keys and no network: answers echo the retrieved context, captions describe the image's type and
 size, and code review shows ESLint results only (ESLint itself is real and runs locally).
 
-The Gemini, Groq and OpenRouter adapters are not implemented yet; selecting one currently fails with a "not implemented
-yet" error. When they are, keys go in `server/.env` only, never in `client/`. See
-[architecture: model providers](docs/architecture.md#model-providers-current-status).
+To use Gemini, create a free key at https://aistudio.google.com, then in `server/.env` set `GEMINI_API_KEY` and
+`LLM_PROVIDER=gemini`, `EMBEDDING_PROVIDER=gemini`, `CAPTION_PROVIDER=gemini`, and restart the server. Model IDs and
+limits are in [configuration](docs/configuration.md). Documents indexed under another embedding model must be
+re-uploaded. Keys stay in `server/.env`, never in `client/`. Groq and OpenRouter are not implemented yet.
 
 ## API
 

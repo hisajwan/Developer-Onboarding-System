@@ -20,16 +20,18 @@ class RecordingAgent:
 
 class FakeHistory:
     def __init__(self) -> None:
-        self.messages: list[tuple[str, ChatRole, str]] = []
+        self.messages: list[tuple[str, ChatRole, str, tuple[str, ...]]] = []
 
-    async def append(self, session_id: str, role: ChatRole, content: str) -> None:
-        self.messages.append((session_id, role, content))
+    async def append(
+        self, session_id: str, role: ChatRole, content: str, sources: Sequence[str] = ()
+    ) -> None:
+        self.messages.append((session_id, role, content, tuple(sources)))
 
     async def list_for_session(self, session_id: str, limit: int = 50) -> list[ChatMessage]:
         now = datetime.now(UTC)
         return [
-            ChatMessage(role=role, content=content, created_at=now)
-            for sid, role, content in self.messages
+            ChatMessage(role=role, content=content, created_at=now, sources=sources)
+            for sid, role, content, sources in self.messages
             if sid == session_id
         ][-limit:]
 
@@ -63,9 +65,10 @@ async def test_handle_saves_both_turns_to_history(
 ) -> None:
     await service.handle(ChatRequest(message="How do I set up?"))
 
+    # The answer is saved with its citations, so they still show after a reload.
     assert history.messages == [
-        ("session-1", "user", "How do I set up?"),
-        ("session-1", "assistant", "Run npm install."),
+        ("session-1", "user", "How do I set up?", ()),
+        ("session-1", "assistant", "Run npm install.", ("dev-setup.md",)),
     ]
 
 

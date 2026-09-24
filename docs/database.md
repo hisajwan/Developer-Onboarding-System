@@ -129,17 +129,21 @@ The registry of what is indexed per project; it drives the docs list and makes i
 | `role` | TEXT | `user` or `assistant` |
 | `content` | TEXT | |
 | `created_at` | TEXT | |
+| `sources` | TEXT (JSON list) | Files an assistant answer cited, `[]` otherwise; added to older databases on start-up |
 
 The most recent 50 messages of a session (oldest first) are passed back to the agent on each turn as its memory, and
 are what the history endpoint returns; older ones stay stored.
 
 ## Chroma
 
-One persistent collection, `documents`, cosine distance, with embeddings supplied by the app's own `Embedder` (Chroma's
-built-in embedding function is off).
+One persistent collection per embedding model, named `documents-<model>` (for example
+`documents-gemini-embedding-001`), cosine distance, with embeddings supplied by the app's own `Embedder` (Chroma's
+built-in embedding function is off). A collection's vector size is fixed by its first insert, so each embedding model
+needs its own; switching models starts with an empty index for that model.
 
 - **Scoping:** every chunk carries `project_id` in its metadata and every query, lookup and delete filters on it.
-- **Chunk id:** sha256 of embedding model + project + source + chunk index + whether it is an image caption + text.
+- **Chunk id:** sha256 of embedding model + embedding input format + project + source + chunk index + whether it is an
+  image caption + text.
   The same content always maps to the same id, so a re-upload upserts in place and only new chunks are embedded; ids
   also change when the embedding model changes, so old vectors are never reused.
 - **Metadata:** `project_id`, `source` (the filename), `index`, `is_image_caption`, and `page` for image captions.

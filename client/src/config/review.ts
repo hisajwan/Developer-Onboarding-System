@@ -3,6 +3,7 @@ import type { ReviewCategory, SnippetLanguage } from "@/types/review";
 /** Tag text per category, as in the wireframe (a11y / test / style). */
 export const CATEGORY_LABELS: Record<ReviewCategory, string> = {
   accessibility: "a11y",
+  security: "security",
   test: "test",
   style: "style",
 };

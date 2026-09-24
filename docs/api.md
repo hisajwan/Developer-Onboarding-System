@@ -28,8 +28,10 @@ Related: [architecture](architecture.md), [database design](database.md).
 | 409 | `account_already_exists` | Signup with a username or email already in use |
 | 413 | `document_too_large` | Upload over `MAX_UPLOAD_BYTES` (10 MB default) |
 | 422 | `invalid_document` | Unsupported, empty, unreadable or text-free file |
+| 429 | `model_rate_limited` | The model provider's rate limit or daily quota was hit (after trying the fallback model) |
 | 500 | `configuration_error` | Server misconfigured: `AUTH_SECRET` missing, a provider key missing, lint helper not installed |
 | 502 | `linter_failed` | The ESLint helper crashed, timed out or returned unreadable output |
+| 502 | `model_provider_error` | The model provider failed: key rejected, unknown model, outage or invalid request |
 
 ## Health
 
@@ -80,7 +82,7 @@ from the command line.
 | `DELETE /projects/{id}/documents/{filename}` | | `204`; removes the file, its chunks and its registry row |
 
 Accepted files: `.md`, `.markdown`, `.txt`, `.pdf`, and images `.png`, `.jpg`, `.jpeg`, `.webp`. Images inside PDFs,
-and standalone images at least `MIN_IMAGE_DIMENSION_PX` (32) on their shortest side, are captioned and indexed as text.
+and standalone images at least `MIN_IMAGE_DIMENSION_PX` (100) on their shortest side, are captioned and indexed as text.
 Uploading identical content again returns `status: "unchanged"` with `chunks_embedded: 0`; a changed file with the same
 name replaces the old one, embedding only its new chunks.
 
@@ -98,10 +100,10 @@ name replaces the old one, embedding only its new chunks.
 | Route | Body | Response |
 |---|---|---|
 | `POST /projects/{id}/sessions/{session_id}/chat` | `{message}` (1 to 8000 chars) | `200 {reply, sources: [filename], tools_used: [tool name]}` |
-| `GET /projects/{id}/sessions/{session_id}/chat/history` | | `200 {messages: [{role: "user" \| "assistant", content, created_at}]}`, the latest 50, oldest first |
+| `GET /projects/{id}/sessions/{session_id}/chat/history` | | `200 {messages: [{role: "user" \| "assistant", content, created_at, sources}]}`, the latest 50, oldest first |
 
-The agent picks one tool per message: `retrieve_and_answer` (answers from the project's documents; `sources` lists the
-files used) or `review_code` (a pasted snippet; the reply lists the review findings as text, `sources` is empty). Both
+The agent picks one tool per message: `retrieve_and_answer` (answers from the project's documents in Markdown;
+`sources` lists only the files the answer used, and is empty when the documents don't cover the question) or `review_code` (a pasted snippet; the reply lists the review findings as text, `sources` is empty). Both
 the message and the reply are saved to the session, and its latest 50 messages are sent to the agent as memory.
 
 ## Code review
@@ -138,7 +140,7 @@ Response `200`:
 
 | Field | Meaning |
 |---|---|
-| `category` | `accessibility`, `test` or `style`. ESLint's `jsx-a11y/*` rules are accessibility, its other rules style; `test` comes only from the model |
+| `category` | `accessibility`, `security`, `test` or `style`. ESLint's `jsx-a11y/*` rules are accessibility; `no-eval`, `no-implied-eval`, `no-new-func`, `no-script-url`, `react/no-danger`, `react/jsx-no-script-url` and `react/jsx-no-target-blank` are security; its other rules are style. `test` comes only from the model |
 | `severity` | `error` / `warning` for ESLint findings, `suggestion` for the model's |
 | `source` | `eslint` or `model` |
 | `line`, `rule_id` | May be `null` (the model's findings have no rule) |
