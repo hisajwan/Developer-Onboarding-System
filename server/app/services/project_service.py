@@ -26,6 +26,10 @@ class ProjectService:
         await self._projects.create(project)
         return project
 
+    async def delete_project(self, owner_username: str, project_id: str) -> None:
+        await self.get_owned_project(owner_username, project_id)
+        await self._projects.delete(project_id)
+
     async def list_projects(self, owner_username: str) -> list[Project]:
         return await self._projects.list_for_owner(owner_username)
 

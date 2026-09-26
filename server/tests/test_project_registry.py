@@ -73,6 +73,18 @@ async def test_renaming_an_unknown_project_returns_none(registry: SqliteProjectR
 
 
 @pytest.mark.anyio
+async def test_delete_removes_the_project_and_ignores_unknown_ids(
+    registry: SqliteProjectRegistry,
+) -> None:
+    await registry.create(project())
+
+    await registry.delete("proj-1")
+    await registry.delete("missing")
+
+    assert await registry.get("proj-1") is None
+
+
+@pytest.mark.anyio
 async def test_registry_survives_a_restart(tmp_path: Path) -> None:
     path = tmp_path / "app.db"
     await SqliteProjectRegistry(path).create(project())

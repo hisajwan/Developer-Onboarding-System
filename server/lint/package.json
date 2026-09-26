@@ -1,0 +1,17 @@
+{
+  "name": "onboarding-snippet-linter",
+  "private": true,
+  "type": "module",
+  "description": "Lints one pasted React/TypeScript snippet with ESLint's Linter API. JSON on stdin, JSON on stdout.",
+  "scripts": {
+    "lint-snippet": "node lint-snippet.mjs"
+  },
+  "dependencies": {
+    "eslint": "9.39.5",
+    "eslint-plugin-jsx-a11y": "6.10.2",
+    "eslint-plugin-react": "7.37.5",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.70.0"
+  }
+}

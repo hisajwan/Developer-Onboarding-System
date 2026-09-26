@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/atoms/Button";
+import { Select } from "@/components/atoms/Select";
 import { useChatSessionContext } from "./ChatSessionProvider";
 
 /** Ask mode's own conversation switcher: pick among this project's sessions, or start a new one. */
@@ -21,18 +22,17 @@ export function ChatSessionSwitcher() {
   return (
     <div className="flex items-center gap-2">
       {sessions.length > 0 && (
-        <select
+        <Select
           value={currentSessionId ?? ""}
           onChange={(event) => selectSession(event.target.value)}
           aria-label="Conversation"
-          className="rounded-md border border-border bg-canvas px-2 py-1 text-xs outline-none focus:border-primary"
         >
           {sessions.map((session) => (
             <option key={session.id} value={session.id}>
               {session.name}
             </option>
           ))}
-        </select>
+        </Select>
       )}
       <Button
         type="button"

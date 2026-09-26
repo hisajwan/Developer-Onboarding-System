@@ -14,16 +14,24 @@ class ChatResponse(BaseModel):
     reply: str
     sources: list[str] = []
     tools_used: list[str] = []
+    # Every file retrieval returned for this answer; `sources` are the ones it cited.
+    retrieved_sources: list[str] = []
 
 
 class ChatMessageResponse(BaseModel):
     role: Literal["user", "assistant"]
     content: str
     created_at: datetime
+    sources: list[str] = []
 
     @classmethod
     def from_domain(cls, message: ChatMessage) -> "ChatMessageResponse":
-        return cls(role=message.role, content=message.content, created_at=message.created_at)
+        return cls(
+            role=message.role,
+            content=message.content,
+            created_at=message.created_at,
+            sources=list(message.sources),
+        )
 
 
 class ChatHistoryResponse(BaseModel):

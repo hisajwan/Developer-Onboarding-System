@@ -13,7 +13,7 @@ from app.core.exceptions import (
 from app.domain.models import User
 from app.domain.ports import SessionTokens
 from app.infrastructure.auth.jwt_tokens import JwtSessionTokens
-from app.infrastructure.auth.passwords import hash_password
+from app.infrastructure.auth.passwords import BcryptPasswordHasher, hash_password
 from app.services.auth_service import AuthService
 
 
@@ -65,7 +65,7 @@ def _user(username: str = "dev", password: str = "secret", email: str | None = N
 
 @pytest.fixture
 def service() -> AuthService:
-    return AuthService(FakeUsers(), FakeTokens())
+    return AuthService(FakeUsers(), FakeTokens(), BcryptPasswordHasher())
 
 
 @pytest.mark.anyio
@@ -119,7 +119,7 @@ async def test_signup_creates_an_account_and_logs_it_in(service: AuthService) ->
 @pytest.mark.anyio
 async def test_signup_hashes_the_password_rather_than_storing_it(service: AuthService) -> None:
     users = FakeUsers(username="")  # empty registry
-    empty_service = AuthService(users, FakeTokens())
+    empty_service = AuthService(users, FakeTokens(), BcryptPasswordHasher())
 
     await empty_service.signup(
         first_name="Ada",

@@ -23,3 +23,16 @@ def dummy_password_hash() -> str:
     be used to discover which usernames exist.
     """
     return hash_password(secrets.token_urlsafe(32))
+
+
+class BcryptPasswordHasher:
+    """The `PasswordHasher` port over the functions above."""
+
+    def hash(self, password: str) -> str:
+        return hash_password(password)
+
+    def verify(self, password: str, password_hash: str) -> bool:
+        return verify_password(password, password_hash)
+
+    def dummy_hash(self) -> str:
+        return dummy_password_hash()

@@ -8,6 +8,7 @@ from app.infrastructure.embeddings.fake import FakeEmbedder
 from app.infrastructure.embeddings.gemini import GeminiEmbedder
 from app.infrastructure.embeddings.registry import create_embedder
 from app.infrastructure.llm.fake import FakeLLMClient
+from app.infrastructure.llm.fallback import FallbackLLMClient
 from app.infrastructure.llm.groq import GroqLLMClient
 from app.infrastructure.llm.openrouter import OpenRouterLLMClient
 from app.infrastructure.llm.registry import create_llm_client
@@ -37,14 +38,16 @@ def test_gemini_embedder_without_a_key_is_a_configuration_error() -> None:
         create_embedder(settings)
 
 
-@pytest.mark.anyio
-async def test_gemini_embeddings_are_not_implemented_yet() -> None:
-    embedder = GeminiEmbedder.from_settings(
-        Settings(embedding_provider="gemini", gemini_api_key=SecretStr("k"), _env_file=None)
+def test_gemini_embedder_uses_the_configured_model_name() -> None:
+    settings = Settings(
+        embedding_provider="gemini",
+        gemini_api_key=SecretStr("k"),
+        gemini_embedding_model="gemini-embedding-2",
+        _env_file=None,
     )
 
-    with pytest.raises(NotImplementedError):
-        await embedder.embed_query("hello")
+    # The name goes into chunk ids and the index signature, so a model change re-indexes.
+    assert create_embedder(settings).model_name == "gemini-embedding-2"
 
 
 def test_gemini_client_is_built_when_key_is_present() -> None:
@@ -84,14 +87,37 @@ def test_fallback_llm_providers_without_a_key_are_a_configuration_error(provider
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize(
-    ("client_class", "key_field"),
-    [(GroqLLMClient, "groq_api_key"), (OpenRouterLLMClient, "openrouter_api_key")],
-)
-async def test_fallback_llm_generation_is_not_implemented_yet(
-    client_class: type, key_field: str
-) -> None:
-    client = client_class.from_settings(Settings(**{key_field: SecretStr("k")}, _env_file=None))
+async def test_openrouter_generation_is_not_implemented_yet() -> None:
+    settings = Settings(openrouter_api_key=SecretStr("k"), _env_file=None)
+    client = OpenRouterLLMClient.from_settings(settings)
 
     with pytest.raises(NotImplementedError):
         await client.generate("hello")
+
+
+def test_a_fallback_provider_wraps_the_main_client() -> None:
+    settings = Settings(
+        llm_provider="gemini",
+        gemini_api_key=SecretStr("k"),
+        groq_api_key=SecretStr("k"),
+        llm_fallback_provider="groq",
+        _env_file=None,
+    )
+
+    assert isinstance(create_llm_client(settings), FallbackLLMClient)
+
+
+def test_a_blank_fallback_provider_means_none() -> None:
+    assert Settings(llm_fallback_provider="", _env_file=None).llm_fallback_provider is None
+
+
+def test_a_fallback_provider_without_its_key_is_a_configuration_error() -> None:
+    settings = Settings(
+        llm_provider="gemini",
+        gemini_api_key=SecretStr("k"),
+        llm_fallback_provider="groq",
+        _env_file=None,
+    )
+
+    with pytest.raises(ConfigurationError, match="GROQ_API_KEY"):
+        create_llm_client(settings)

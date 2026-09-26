@@ -413,3 +413,20 @@ async def test_a_deleted_document_can_be_re_uploaded_and_fully_re_indexed(world:
 
     assert result.status == "indexed"
     assert world.embedder.texts_embedded - embedded_before == 10  # re-embedded, not skipped
+
+
+@pytest.mark.anyio
+async def test_the_file_name_is_embedded_but_the_stored_text_is_unchanged(world: World) -> None:
+    seen: list[str] = []
+    original = world.embedder.embed_documents
+
+    async def recording(texts: list[str]) -> list[list[float]]:
+        seen.extend(texts)
+        return await original(texts)
+
+    world.embedder.embed_documents = recording
+    await world.ingest("Competitor_notes.md", doc(3))
+
+    assert seen and all(text.startswith("File: Competitor notes\nText:\n") for text in seen)
+    stored = [record.chunk.text for record in world.vectors.records.values()]
+    assert all(not text.startswith("File:") for text in stored)

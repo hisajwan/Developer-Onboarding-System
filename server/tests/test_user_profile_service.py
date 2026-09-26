@@ -4,7 +4,11 @@ import pytest
 
 from app.core.exceptions import InvalidCredentialsError, NotFoundError
 from app.domain.models import User
-from app.infrastructure.auth.passwords import hash_password, verify_password
+from app.infrastructure.auth.passwords import (
+    BcryptPasswordHasher,
+    hash_password,
+    verify_password,
+)
 from app.services.user_profile_service import UserProfileService
 
 
@@ -34,7 +38,7 @@ def users() -> FakeUsers:
 
 @pytest.fixture
 def service(users: FakeUsers) -> UserProfileService:
-    return UserProfileService(users)
+    return UserProfileService(users, BcryptPasswordHasher())
 
 
 @pytest.mark.anyio

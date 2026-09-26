@@ -45,6 +45,9 @@ class SqliteProjectRegistry:
     async def rename(self, project_id: str, name: str) -> Project | None:
         return await asyncio.to_thread(self._rename, project_id, name)
 
+    async def delete(self, project_id: str) -> None:
+        await asyncio.to_thread(self._delete, project_id)
+
     def _get(self, project_id: str) -> Project | None:
         with closing(self._connect()) as connection:
             row = connection.execute(
@@ -83,6 +86,11 @@ class SqliteProjectRegistry:
             if cursor.rowcount == 0:
                 return None
         return self._get(project_id)
+
+
+    def _delete(self, project_id: str) -> None:
+        with closing(self._connect()) as connection, connection:
+            connection.execute("DELETE FROM projects WHERE id = ?", (project_id,))
 
 
 def _to_project(row: tuple) -> Project:

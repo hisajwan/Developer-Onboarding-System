@@ -4,9 +4,9 @@ import { useState, type FormEvent } from "react";
 import { Button } from "@/components/atoms/Button";
 import { TextInput } from "@/components/atoms/TextInput";
 import { ApiError } from "@/lib/api/http";
-import { changePassword } from "@/lib/api/profile";
 
 interface ChangePasswordFormProps {
+  onSubmit: (currentPassword: string, newPassword: string) => Promise<void>;
   /** Called once the password has actually changed - the modal that hosts this form closes on it. */
   onSuccess: () => void;
 }
@@ -15,7 +15,7 @@ interface ChangePasswordFormProps {
 // disabled state on and off as you type is easy to get subtly wrong (a stale value, a missed
 // dependency) and gives no feedback about *what's* still missing - a submit attempt saying so
 // plainly is both simpler and clearer.
-export function ChangePasswordForm({ onSuccess }: ChangePasswordFormProps) {
+export function ChangePasswordForm({ onSubmit, onSuccess }: ChangePasswordFormProps) {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -39,7 +39,7 @@ export function ChangePasswordForm({ onSuccess }: ChangePasswordFormProps) {
     setError(null);
     setIsSaving(true);
     try {
-      await changePassword(currentPassword, newPassword);
+      await onSubmit(currentPassword, newPassword);
       onSuccess();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not change your password.");

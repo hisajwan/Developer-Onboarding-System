@@ -82,7 +82,7 @@ def test_pdf_and_text_files_are_accepted(auth_client: TestClient, project_id: st
 def test_a_pdf_with_a_diagram_gets_a_captioned_chunk_for_it(
     auth_client: TestClient, project_id: str
 ) -> None:
-    pdf = make_pdf_with_image(64, 64, text="architecture overview")
+    pdf = make_pdf_with_image(128, 128, text="architecture overview")
 
     response = upload(auth_client, project_id, "architecture.pdf", pdf, "application/pdf")
 
@@ -100,7 +100,7 @@ def test_a_pdf_with_a_diagram_gets_a_captioned_chunk_for_it(
 def test_a_standalone_image_upload_is_indexed_and_cited(
     auth_client: TestClient, project_id: str
 ) -> None:
-    response = upload(auth_client, project_id, "diagram.png", make_image(64, 64), "image/png")
+    response = upload(auth_client, project_id, "diagram.png", make_image(128, 128), "image/png")
 
     body = response.json()
     assert response.status_code == 200
