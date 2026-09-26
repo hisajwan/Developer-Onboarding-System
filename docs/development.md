@@ -8,25 +8,27 @@ Related: [architecture](architecture.md), [configuration](configuration.md).
 server/
   app/
     api/             routes/, deps.py (auth + ownership dependencies), container.py (picks concrete adapters)
-    services/        business flows: auth, profile, projects, chat sessions, chat, ingestion, code review
+    services/        business flows: auth, profile, projects (+ setup with "Session 1"), chat sessions, chat,
+                     ingestion, code review, activity/stats, evaluation
     agent/           LangChain agent and its tools (tools/)
     domain/          models.py (dataclasses) and ports/ (Protocol interfaces)
     infrastructure/  adapters: storage/ (SQLite, disk), vectorstore/ (Chroma), embeddings/, llm/, chat_models/,
-                     captioning/, documents/ (file readers), linting/ (ESLint helper), auth/ (JWT, bcrypt)
+                     gemini/ and groq/ (shared chat model + error mapping), captioning/, documents/ (file readers),
+                     linting/ (ESLint helper), auth/ (JWT, bcrypt), model_calls.py (call counter)
     ingestion/       chunker, chunk ids, filename rules
+    review/          unified-diff parsing for code review
     schemas/         request/response models
     core/            settings, errors
   lint/              Node ESLint helper for code review
-  scripts/           create_user.py
+  scripts/           create_user.py, evaluate.py (+ evaluation-examples/)
   tests/
 client/src/
   app/               routes: login, signup, and (app)/ with dashboard, ask, code-review, account + layout providers
   components/        atoms/, molecules/, organisms/, templates/
-  hooks/             feature hooks (chat, code review, profile, login, signup, logout)
+  hooks/             feature hooks (chat, code review, profile, project stats, login, signup, logout)
   lib/api/           one function per endpoint, all through http.ts
   config/            navigation, labels and other static lists
   types/             shared types
-  mocks/             sample data for screens not wired yet (Dashboard)
   proxy.ts           redirects to /login when there is no session cookie
 docs/                this documentation
 ```

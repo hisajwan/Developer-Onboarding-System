@@ -4,7 +4,7 @@ The server keeps three kinds of data, all under `DATA_DIR` (default `server/data
 
 | Store | Location | Holds |
 |---|---|---|
-| SQLite | `data/onboarding.db` | Users, projects, chat sessions, chat messages, the documents registry |
+| SQLite | `data/onboarding.db` | Users, projects, chat sessions, chat messages, the documents registry, activity |
 | Chroma (persistent) | `data/chroma/` | Document chunks: text, embedding and metadata |
 | Disk | `data/docs/<project_id>/<filename>` | The original uploaded files |
 
@@ -22,6 +22,7 @@ erDiagram
     projects ||--o{ documents : contains
     projects ||--o{ chat_sessions : has
     chat_sessions ||--o{ chat_messages : holds
+    projects ||--o{ activity : records
     projects ||--o{ CHROMA_CHUNK : "scopes (project_id metadata)"
     documents ||--o{ CHROMA_CHUNK : "split into (source = filename)"
 
@@ -60,6 +61,16 @@ erDiagram
         TEXT session_id
         TEXT role
         TEXT content
+        TEXT created_at
+    }
+    activity {
+        INTEGER id PK
+        TEXT project_id
+        TEXT kind
+        TEXT source
+        TEXT title
+        TEXT detail
+        INTEGER finding_count "nullable"
         TEXT created_at
     }
     CHROMA_CHUNK {
@@ -134,6 +145,22 @@ The registry of what is indexed per project; it drives the docs list and makes i
 The most recent 50 messages of a session (oldest first) are passed back to the agent on each turn as its memory, and
 are what the history endpoint returns; older ones stay stored.
 
+### `activity`
+
+One row per question asked or review run, recorded as it happens; the dashboard's counts and recent list are read
+from here (`GET /projects/{id}/stats`).
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | INTEGER PK AUTOINCREMENT | |
+| `project_id` | TEXT | Index `idx_activity_project (project_id, created_at)` |
+| `kind` | TEXT | `question` or `review` |
+| `source` | TEXT | `ask` (chat, including code pasted into chat) or `code_review_screen` |
+| `title` | TEXT | The question, "Reviewed: " + the snippet's first line, or "Reviewed diff: " + the changed files; at most 120 characters |
+| `detail` | TEXT | Start of the answer or the review summary, one line, at most 200 characters |
+| `finding_count` | INTEGER NULL | Reviews from the Code review screen only |
+| `created_at` | TEXT | |
+
 ## Chroma
 
 One persistent collection per embedding model, named `documents-<model>` (for example
@@ -154,6 +181,7 @@ needs its own; switching models starts with an empty index for that model.
 |---|---|---|
 | Upload a document | Chroma, disk, `documents` | Embed and upsert new chunks, remove stale ones, save the file, record the row last |
 | Delete a document | `documents`, Chroma, disk | Registry row first (404 if the file isn't indexed), then its chunks, then the file |
-| Create a project | `projects`, `chat_sessions` | Project first, then its "Session 1" (two separate writes, not one transaction) |
+| Create a project | `projects`, `chat_sessions` | Project first, then its "Session 1"; if the session write fails, the project row is deleted again (`ProjectSetupService`) |
+| Chat turn | `chat_messages`, `activity` | Both messages, then one activity row |
 
 Projects, sessions and users cannot be deleted through the API yet.

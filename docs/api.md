@@ -28,7 +28,7 @@ Related: [architecture](architecture.md), [database design](database.md).
 | 409 | `account_already_exists` | Signup with a username or email already in use |
 | 413 | `document_too_large` | Upload over `MAX_UPLOAD_BYTES` (10 MB default) |
 | 422 | `invalid_document` | Unsupported, empty, unreadable or text-free file |
-| 429 | `model_rate_limited` | The model provider's rate limit or daily quota was hit (after trying the fallback model) |
+| 429 | `model_rate_limited` | The model provider's rate limit or daily quota was hit (after trying the fallback model and any `LLM_FALLBACK_PROVIDER`) |
 | 500 | `configuration_error` | Server misconfigured: `AUTH_SECRET` missing, a provider key missing, lint helper not installed |
 | 502 | `linter_failed` | The ESLint helper crashed, timed out or returned unreadable output |
 | 502 | `model_provider_error` | The model provider failed: key rejected, unknown model, outage or invalid request |
@@ -67,7 +67,7 @@ from the command line.
 | Route | Body | Response |
 |---|---|---|
 | `GET /projects` | | `200 {projects: [Project]}`, the caller's own projects, newest first |
-| `POST /projects` | `{name}` (1 to 200 chars) | `201 Project`; also creates the project's first chat session, "Session 1" |
+| `POST /projects` | `{name}` (1 to 200 chars) | `201 Project`; also creates the project's first chat session, "Session 1" (if that fails, the project is removed again and the error is returned) |
 | `PATCH /projects/{id}` | `{name}` | `200 Project` |
 | `POST /projects/{id}/select` | | `200 Project`; remembered as `last_project_id` for the next login |
 
@@ -99,12 +99,15 @@ name replaces the old one, embedding only its new chunks.
 
 | Route | Body | Response |
 |---|---|---|
-| `POST /projects/{id}/sessions/{session_id}/chat` | `{message}` (1 to 8000 chars) | `200 {reply, sources: [filename], tools_used: [tool name]}` |
+| `POST /projects/{id}/sessions/{session_id}/chat` | `{message}` (1 to 8000 chars) | `200 {reply, sources: [filename], tools_used: [tool name], retrieved_sources: [filename]}` |
 | `GET /projects/{id}/sessions/{session_id}/chat/history` | | `200 {messages: [{role: "user" \| "assistant", content, created_at, sources}]}`, the latest 50, oldest first |
 
 The agent picks one tool per message: `retrieve_and_answer` (answers from the project's documents in Markdown;
-`sources` lists only the files the answer used, and is empty when the documents don't cover the question) or `review_code` (a pasted snippet; the reply lists the review findings as text, `sources` is empty). Both
-the message and the reply are saved to the session, and its latest 50 messages are sent to the agent as memory.
+`sources` lists only the files the answer used, and is empty when the documents don't cover the question;
+`retrieved_sources` lists every file retrieval returned, cited or not) or `review_code` (a pasted snippet or diff; the
+reply lists the review findings as text, `sources` is empty). Both the message and the reply are saved to the session,
+and its latest 50 messages are sent to the agent as memory. Each message also counts on the dashboard: a question, or
+a review when `review_code` was used.
 
 ## Code review
 
@@ -116,7 +119,9 @@ Request:
 { "code": "function Card({ src }) {\n  return <img src={src} />;\n}", "language": "tsx" }
 ```
 
-`code` is 1 to 20,000 characters; `language` is one of `tsx` (default), `ts`, `jsx`, `js`.
+`code` is 1 to 20,000 characters; `language` is one of `tsx` (default), `ts`, `jsx`, `js`. If `code` is a unified
+diff (a `diff --git` or `---`/`+++` header plus `@@` hunks), it is reviewed as one: each `.js`, `.jsx`, `.ts` or `.tsx`
+file's hunks are linted, only findings on added or changed lines are kept, and other files are skipped with a note.
 
 Response `200`:
 
@@ -129,12 +134,15 @@ Response `200`:
       "severity": "error",
       "source": "eslint",
       "line": 2,
-      "rule_id": "jsx-a11y/alt-text"
+      "rule_id": "jsx-a11y/alt-text",
+      "file": null
     }
   ],
   "summary": "ESLint found 1 issue(s). The model's review was not available.",
   "judgement_available": false,
-  "parse_error": null
+  "parse_error": null,
+  "kind": "snippet",
+  "notes": []
 }
 ```
 
@@ -145,6 +153,37 @@ Response `200`:
 | `source` | `eslint` or `model` |
 | `line`, `rule_id` | May be `null` (the model's findings have no rule) |
 | `judgement_available` | `false` when the model's reply could not be read as a review; the findings are then ESLint-only |
-| `parse_error` | Set when the snippet is not valid code: no findings, and the model is not called |
+| `parse_error` | Set when the snippet is not valid code, or a diff changes no JS/TS file: no findings, and the model is not called |
+| `kind` | `snippet` or `diff` |
+| `file` | The changed file a finding is in (diffs only); `line` is then the line in the new version of that file |
+| `notes` | What a diff review skipped, e.g. non-JS files, or a hunk ESLint couldn't parse on its own (left to the model) |
 
-Reviews are not stored.
+The review itself is not stored; one activity row (title, summary, finding count) is recorded for the dashboard.
+
+## Dashboard
+
+`GET /projects/{id}/stats` → `200`:
+
+```json
+{
+  "questions_this_week": 12,
+  "reviews_this_week": 3,
+  "questions_total": 40,
+  "reviews_total": 9,
+  "documents_indexed": 5,
+  "recent": [
+    {
+      "kind": "review",
+      "source": "code_review_screen",
+      "title": "Reviewed: export function Card({ src }) {",
+      "detail": "ESLint found 1 issue(s).",
+      "finding_count": 1,
+      "created_at": "2026-09-25T10:12:00Z"
+    }
+  ]
+}
+```
+
+"This week" is the last 7 days. `recent` holds the latest 10 events, newest first; `kind` is `question` or `review`,
+`source` is `ask` (chat) or `code_review_screen`, and `finding_count` is set only for reviews from the Code review
+screen.

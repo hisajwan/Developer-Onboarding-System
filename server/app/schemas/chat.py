@@ -14,6 +14,8 @@ class ChatResponse(BaseModel):
     reply: str
     sources: list[str] = []
     tools_used: list[str] = []
+    # Every file retrieval returned for this answer; `sources` are the ones it cited.
+    retrieved_sources: list[str] = []
 
 
 class ChatMessageResponse(BaseModel):

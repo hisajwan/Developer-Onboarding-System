@@ -6,7 +6,8 @@ from langchain_core.messages import HumanMessage
 from langchain_core.runnables import Runnable
 
 from app.core.config import Settings
-from app.infrastructure.gemini.chat import build_gemini_chat, message_text
+from app.infrastructure.gemini.chat import build_gemini_chat
+from app.infrastructure.llm.chat_client import message_text
 
 _PROMPT = (
     "This image comes from a software project's documentation. Describe it so that a developer "

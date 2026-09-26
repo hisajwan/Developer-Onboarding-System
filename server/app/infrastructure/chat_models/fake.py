@@ -28,9 +28,12 @@ _CODE_SIGNALS = (
 )
 
 
+_DIFF = re.compile(r"^(diff --git |@@ -\d)", re.MULTILINE)
+
+
 def looks_like_code(text: str) -> bool:
     """True for a fenced block, or for text showing at least two separate signs of code."""
-    if "```" in text:
+    if "```" in text or _DIFF.search(text):
         return True
     return sum(1 for signal in _CODE_SIGNALS if signal.search(text)) >= 2
 

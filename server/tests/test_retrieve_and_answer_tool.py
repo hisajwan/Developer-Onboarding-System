@@ -171,6 +171,7 @@ async def test_a_dont_know_answer_cites_nothing(
 
     assert result.content == "The documents don't say who the competitor is."
     assert result.sources == ()
+    assert result.retrieved == ("README.md",)  # retrieved, just not cited
 
 
 @pytest.mark.anyio

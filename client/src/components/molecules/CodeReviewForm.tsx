@@ -27,7 +27,7 @@ export function CodeReviewForm({ onSubmit, isReviewing }: CodeReviewFormProps) {
       <Textarea
         value={code}
         onChange={(event) => setCode(event.target.value)}
-        placeholder="Paste a React or TypeScript snippet to review..."
+        placeholder="Paste a React or TypeScript snippet, or a git diff, to review..."
         aria-label="Code to review"
         rows={10}
         spellCheck={false}

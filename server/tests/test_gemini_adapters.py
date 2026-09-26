@@ -17,11 +17,13 @@ from app.core.config import Settings
 from app.core.exceptions import ModelProviderError, ModelRateLimitedError
 from app.domain.models import ToolResult
 from app.domain.ports import Embedder, ImageCaptioner, LLMClient
+from app.infrastructure import model_calls
 from app.infrastructure.captioning.gemini import GeminiImageCaptioner
 from app.infrastructure.chat_models.fake import FakeToolCallingChatModel
 from app.infrastructure.embeddings.gemini import GeminiEmbedder
-from app.infrastructure.gemini.chat import build_gemini_chat, message_text
+from app.infrastructure.gemini.chat import build_gemini_chat
 from app.infrastructure.gemini.errors import gemini_errors
+from app.infrastructure.llm.chat_client import message_text
 from app.infrastructure.llm.gemini import GeminiLLMClient
 
 
@@ -149,12 +151,14 @@ async def test_a_large_document_is_split_into_paced_groups_in_order() -> None:
     # Budget = 80% of 100 tokens = 80; each 150-char text estimates at 51 tokens -> one per group.
     embedder, client, sleeps = make_embedder(tokens_per_minute=100)
     texts = ["x" * 150, "y" * 150, "z" * 150]
+    before = model_calls.snapshot()
 
     vectors = await embedder.embed_documents(texts)
 
     assert client.document_calls == [[texts[0]], [texts[1]], [texts[2]]]
     assert sleeps == [60.0, 60.0]
     assert vectors == [[150.0], [150.0], [150.0]]
+    assert model_calls.since(before) == {"gemini:embed:gemini-embedding-001": 3}
 
 
 @pytest.mark.anyio
@@ -223,9 +227,13 @@ async def test_the_fallback_model_answers_when_the_main_one_is_rate_limited(monk
 
     calls = patch_sdk(monkeypatch, behaviour)
     client = GeminiLLMClient(build_gemini_chat(settings()))
+    before = model_calls.snapshot()
 
     assert await client.generate("q") == "from the fallback"
     assert [c.split("/")[-1] for c in calls] == ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]
+    # Both attempts are counted: the rate-limited one still used quota.
+    counted = {key.split("/")[-1]: n for key, n in model_calls.since(before).items()}
+    assert counted == {"gemini-3.5-flash-lite": 1, "gemini-3.1-flash-lite": 1}
 
 
 @pytest.mark.anyio

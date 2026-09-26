@@ -1,10 +1,11 @@
-"""Reviews one pasted React/TypeScript snippet: ESLint first, then the model's judgement.
+"""Reviews one pasted React/TypeScript snippet or unified diff: ESLint first, then the model.
 
 The model adds what lint rules can't see (missing tests, leaked secrets, accessibility semantics).
 If its reply isn't the JSON asked for, the review falls back to the ESLint findings and says so.
 """
 
 import json
+from dataclasses import replace
 from typing import get_args
 
 from app.domain.models import (
@@ -15,6 +16,7 @@ from app.domain.models import (
     SnippetLanguage,
 )
 from app.domain.ports import CodeLinter, LLMClient
+from app.review.diff import looks_like_diff, parse_diff
 
 _CATEGORIES: tuple[str, ...] = get_args(ReviewCategory)
 
@@ -59,6 +61,17 @@ _SYSTEM_PROMPT = "\n".join(
     ]
 )
 
+_DIFF_SYSTEM_PROMPT = "\n".join(
+    [
+        _SYSTEM_PROMPT,
+        "",
+        "The input is a unified diff. Review only the added or changed lines (those starting "
+        "with '+'); use unchanged lines only as context and never report removed lines. Give "
+        '"line" as the line number in the new version of the file (from the @@ hunk headers) '
+        'and add "file": "<path>" to every finding.',
+    ]
+)
+
 
 class CodeReviewService:
     def __init__(self, linter: CodeLinter, llm: LLMClient) -> None:
@@ -66,6 +79,8 @@ class CodeReviewService:
         self._llm = llm
 
     async def review(self, code: str, language: SnippetLanguage = "tsx") -> CodeReview:
+        if looks_like_diff(code):
+            return await self._review_diff(code)
         messages = await self._linter.lint(code, f"snippet.{language}")
 
         parse_error = next((m for m in messages if m.rule_id is None), None)
@@ -93,6 +108,65 @@ class CodeReviewService:
             findings=lint_findings + model_findings,
             summary=summary,
             judgement_available=True,
+        )
+
+    async def _review_diff(self, diff: str) -> CodeReview:
+        """Lint each changed hunk as rebuilt new code, keep findings on added lines only, then ask
+        the model to review the diff itself. A hunk that is only a fragment (ESLint can't parse
+        it on its own) is left to the model and noted."""
+        files = parse_diff(diff)
+        notes = [f"Skipped {f.path}: not a JavaScript or TypeScript file." for f in files
+                 if not f.language]
+        reviewable = [f for f in files if f.language]
+        if not reviewable:
+            return CodeReview(
+                findings=(),
+                summary="The diff has no JavaScript or TypeScript changes to review.",
+                judgement_available=False,
+                parse_error="No .js, .jsx, .ts or .tsx file is changed in this diff.",
+                kind="diff",
+                notes=tuple(notes),
+            )
+
+        lint_findings: list[ReviewFinding] = []
+        for file in reviewable:
+            for hunk in file.hunks:
+                messages = await self._linter.lint(hunk.code, f"snippet.{file.language}")
+                if any(m.rule_id is None for m in messages):
+                    notes.append(
+                        f"{file.path} from line {hunk.new_start}: a partial fragment ESLint "
+                        "could not parse on its own, so only the model reviewed it."
+                    )
+                    continue
+                for message in messages:
+                    new_line = hunk.added_line(message.line or 0)
+                    if new_line is not None:
+                        lint_findings.append(
+                            replace(_from_lint(message), line=new_line, file=file.path)
+                        )
+
+        lint_list = "\n".join(
+            f"- {f.file}:{f.line}: {f.message} ({f.rule_id})" for f in lint_findings
+        ) or "- none"
+        prompt = f"Unified diff:\n{diff}\n\nESLint findings on added lines:\n{lint_list}"
+        judgement = _parse_judgement(
+            await self._llm.generate(prompt, system=_DIFF_SYSTEM_PROMPT)
+        )
+        if judgement is None:
+            return CodeReview(
+                findings=tuple(lint_findings),
+                summary=_lint_only_summary(len(lint_findings)),
+                judgement_available=False,
+                kind="diff",
+                notes=tuple(notes),
+            )
+        summary, model_findings = judgement
+        return CodeReview(
+            findings=tuple(lint_findings) + model_findings,
+            summary=summary,
+            judgement_available=True,
+            kind="diff",
+            notes=tuple(notes),
         )
 
 
@@ -142,7 +216,7 @@ def _parse_judgement(reply: str) -> tuple[str, tuple[ReviewFinding, ...]] | None
         category, message = item.get("category"), item.get("message")
         if category not in _CATEGORIES or not isinstance(message, str) or not message.strip():
             continue
-        line = item.get("line")
+        line, file = item.get("line"), item.get("file")
         findings.append(
             ReviewFinding(
                 category=category,
@@ -150,6 +224,7 @@ def _parse_judgement(reply: str) -> tuple[str, tuple[ReviewFinding, ...]] | None
                 severity="suggestion",
                 source="model",
                 line=line if isinstance(line, int) and line > 0 else None,
+                file=file.strip() if isinstance(file, str) and file.strip() else None,
             )
         )
 

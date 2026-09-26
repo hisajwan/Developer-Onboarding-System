@@ -41,10 +41,14 @@ def format_review(review: CodeReview) -> str:
     if review.parse_error:
         return f"{review.summary}\n\n**Parse error:** {review.parse_error}"
     if not review.findings:
-        return f"{review.summary}\n\nNo issues found."
-    lines = [review.summary, ""]
-    for finding in review.findings:
-        where = f"line {finding.line}: " if finding.line else ""
-        rule = f" (`{finding.rule_id}`)" if finding.rule_id else ""
-        lines.append(f"- **{finding.category}** · {where}{finding.message}{rule}")
+        lines = [review.summary, "", "No issues found."]
+    else:
+        lines = [review.summary, ""]
+        for finding in review.findings:
+            place = f"`{finding.file}` " if finding.file else ""
+            where = f"{place}line {finding.line}: " if finding.line else place
+            rule = f" (`{finding.rule_id}`)" if finding.rule_id else ""
+            lines.append(f"- **{finding.category}** · {where}{finding.message}{rule}")
+    if review.notes:
+        lines += ["", *(f"_Note: {note}_" for note in review.notes)]
     return "\n".join(lines)

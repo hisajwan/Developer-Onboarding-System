@@ -57,7 +57,9 @@ def test_a_flawed_snippet_gets_categorised_eslint_findings(
         "source": "eslint",
         "line": 2,
         "rule_id": "jsx-a11y/alt-text",
+        "file": None,
     }
+    assert (body["kind"], body["notes"]) == ("snippet", [])
     # The fake LLM's echo is not review JSON, so the review says the model part is missing.
     assert body["judgement_available"] is False
     assert body["parse_error"] is None

@@ -20,6 +20,7 @@ from app.agent.tools.retrieve_and_answer import RetrieveAndAnswerTool
 from app.agent.tools.review_code import ReviewCodeTool
 from app.core.config import Settings
 from app.domain.ports import (
+    ActivityLog,
     Agent,
     ChatHistory,
     ChatSessionRegistry,
@@ -30,10 +31,13 @@ from app.domain.ports import (
     Embedder,
     ImageCaptioner,
     LLMClient,
+    PasswordHasher,
     ProjectRegistry,
     UserRegistry,
     VectorStore,
 )
+from app.infrastructure import model_calls
+from app.infrastructure.auth.passwords import BcryptPasswordHasher
 from app.infrastructure.captioning.registry import create_captioner
 from app.infrastructure.chat_models.registry import create_chat_model
 from app.infrastructure.documents.readers import FileReader
@@ -41,16 +45,21 @@ from app.infrastructure.embeddings.registry import create_embedder
 from app.infrastructure.linting.eslint_node import EslintNodeLinter
 from app.infrastructure.llm.registry import create_llm_client
 from app.infrastructure.storage.disk_documents import DiskDocumentStore
+from app.infrastructure.storage.sqlite_activity_log import SqliteActivityLog
 from app.infrastructure.storage.sqlite_chat_history import SqliteChatHistory
 from app.infrastructure.storage.sqlite_chat_session_registry import SqliteChatSessionRegistry
 from app.infrastructure.storage.sqlite_project_registry import SqliteProjectRegistry
 from app.infrastructure.storage.sqlite_registry import SqliteDocumentRegistry
 from app.infrastructure.storage.sqlite_user_registry import SqliteUserRegistry
 from app.infrastructure.vectorstore.chroma_store import ChromaVectorStore, collection_name_for
+from app.services.activity_service import ActivityService
 from app.services.chat_session_service import ChatSessionService
 from app.services.code_review_service import CodeReviewService
+from app.services.evaluation_service import EvaluationService
 from app.services.ingestion_service import IngestionService
+from app.services.project_review_service import ProjectReviewService
 from app.services.project_service import ProjectService
+from app.services.project_setup_service import ProjectSetupService
 from app.services.user_profile_service import UserProfileService
 
 T = TypeVar("T")
@@ -127,6 +136,18 @@ class Container:
         return SqliteProjectRegistry(self._settings.database_path)
 
     @shared
+    def activity_log(self) -> ActivityLog:
+        return SqliteActivityLog(self._settings.database_path)
+
+    @shared
+    def activity_service(self) -> ActivityService:
+        return ActivityService(self.activity_log, self.document_registry)
+
+    @shared
+    def project_review_service(self) -> ProjectReviewService:
+        return ProjectReviewService(self.code_review_service, self.activity_log)
+
+    @shared
     def chat_history(self) -> ChatHistory:
         return SqliteChatHistory(self._settings.database_path)
 
@@ -143,8 +164,16 @@ class Container:
         return ChatSessionService(self.project_service, self.chat_session_registry)
 
     @shared
+    def project_setup_service(self) -> ProjectSetupService:
+        return ProjectSetupService(self.project_service, self.chat_session_service)
+
+    @shared
     def user_profile_service(self) -> UserProfileService:
-        return UserProfileService(self.user_registry)
+        return UserProfileService(self.user_registry, self.password_hasher)
+
+    @shared
+    def password_hasher(self) -> PasswordHasher:
+        return BcryptPasswordHasher()
 
     @shared
     def document_reader(self) -> DocumentReader:
@@ -186,3 +215,10 @@ class Container:
 
     def agent_for(self, project_id: str) -> Agent:
         return LangChainAgent(self.tool_registry_for(project_id), self.chat_model)
+
+    def evaluation_service_for(self, project_id: str) -> EvaluationService:
+        return EvaluationService(
+            self.agent_for(project_id),
+            self.code_review_service,
+            call_snapshot=model_calls.snapshot,
+        )

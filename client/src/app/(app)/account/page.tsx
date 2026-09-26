@@ -10,7 +10,7 @@ import { PageTemplate } from "@/components/templates/PageTemplate";
 import { useProfile } from "@/hooks/useProfile";
 
 export default function AccountPage() {
-  const { profile, isLoading, error, save } = useProfile();
+  const { profile, isLoading, error, save, changePassword } = useProfile();
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
 
   return (
@@ -45,7 +45,10 @@ export default function AccountPage() {
         onClose={() => setIsPasswordModalOpen(false)}
         title="Change password"
       >
-        <ChangePasswordForm onSuccess={() => setIsPasswordModalOpen(false)} />
+        <ChangePasswordForm
+          onSubmit={changePassword}
+          onSuccess={() => setIsPasswordModalOpen(false)}
+        />
       </Modal>
     </PageTemplate>
   );

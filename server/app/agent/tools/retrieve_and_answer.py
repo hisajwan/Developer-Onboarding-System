@@ -75,7 +75,7 @@ class RetrieveAndAnswerTool:
         prompt = f"Excerpts:\n\n{context}\n\nQuestion: {question}"
         reply = await self._llm.generate(prompt, system=_SYSTEM_PROMPT)
         answer, sources = split_sources(reply, retrieved_sources)
-        return ToolResult(content=answer, sources=sources)
+        return ToolResult(content=answer, sources=sources, retrieved=retrieved_sources)
 
 
 def _excerpt(number: int, result: RetrievedChunk) -> str:

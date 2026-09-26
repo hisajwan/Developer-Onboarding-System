@@ -10,12 +10,14 @@ from app.core.config import Settings
 from app.domain.models import ChatSession, Project
 from app.domain.ports import Agent
 from app.infrastructure.auth.jwt_tokens import JwtSessionTokens
+from app.services.activity_service import ActivityService
 from app.services.auth_service import AuthService
 from app.services.chat_service import ChatService
 from app.services.chat_session_service import ChatSessionService
-from app.services.code_review_service import CodeReviewService
 from app.services.ingestion_service import IngestionService
+from app.services.project_review_service import ProjectReviewService
 from app.services.project_service import ProjectService
+from app.services.project_setup_service import ProjectSetupService
 from app.services.user_profile_service import UserProfileService
 
 
@@ -44,7 +46,7 @@ def get_auth_service(settings: SettingsDep, container: ContainerDep) -> AuthServ
     # Check the signing secret (raises ConfigurationError if missing or blank) before touching the
     # user database, so a config error never has the side effect of creating a data directory.
     tokens = JwtSessionTokens.from_settings(settings)
-    return AuthService(container.user_registry, tokens)
+    return AuthService(container.user_registry, tokens, container.password_hasher)
 
 
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
@@ -70,6 +72,13 @@ def get_project_service(container: ContainerDep) -> ProjectService:
 
 
 ProjectServiceDep = Annotated[ProjectService, Depends(get_project_service)]
+
+
+def get_project_setup_service(container: ContainerDep) -> ProjectSetupService:
+    return container.project_setup_service
+
+
+ProjectSetupServiceDep = Annotated[ProjectSetupService, Depends(get_project_setup_service)]
 
 
 async def require_owned_project(
@@ -109,14 +118,27 @@ def get_agent(project: OwnedProjectDep, container: ContainerDep) -> Agent:
 def get_chat_service(
     agent: Annotated[Agent, Depends(get_agent)], session: OwnedSessionDep, container: ContainerDep
 ) -> ChatService:
-    return ChatService(agent, container.chat_history, session.id)
+    return ChatService(
+        agent,
+        container.chat_history,
+        session.id,
+        activity=container.activity_log,
+        project_id=session.project_id,
+    )
 
 
 ChatServiceDep = Annotated[ChatService, Depends(get_chat_service)]
 
 
-def get_code_review_service(container: ContainerDep) -> CodeReviewService:
-    return container.code_review_service
+def get_project_review_service(container: ContainerDep) -> ProjectReviewService:
+    return container.project_review_service
 
 
-CodeReviewServiceDep = Annotated[CodeReviewService, Depends(get_code_review_service)]
+ProjectReviewServiceDep = Annotated[ProjectReviewService, Depends(get_project_review_service)]
+
+
+def get_activity_service(container: ContainerDep) -> ActivityService:
+    return container.activity_service
+
+
+ActivityServiceDep = Annotated[ActivityService, Depends(get_activity_service)]

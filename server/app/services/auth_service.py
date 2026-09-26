@@ -2,16 +2,18 @@ from datetime import UTC, datetime
 
 from app.core.exceptions import InvalidCredentialsError, UnauthorizedError
 from app.domain.models import User
-from app.domain.ports import SessionTokens, UserRegistry
-from app.infrastructure.auth.passwords import dummy_password_hash, hash_password, verify_password
+from app.domain.ports import PasswordHasher, SessionTokens, UserRegistry
 
 
 class AuthService:
     """Looks a login up in the user registry and turns a valid one into a session token."""
 
-    def __init__(self, users: UserRegistry, tokens: SessionTokens) -> None:
+    def __init__(
+        self, users: UserRegistry, tokens: SessionTokens, passwords: PasswordHasher
+    ) -> None:
         self._users = users
         self._tokens = tokens
+        self._passwords = passwords
 
     async def signup(
         self, *, first_name: str, last_name: str, email: str, username: str, password: str
@@ -22,7 +24,7 @@ class AuthService:
         """
         user = User(
             username=username,
-            password_hash=hash_password(password),
+            password_hash=self._passwords.hash(password),
             first_name=first_name,
             last_name=last_name,
             email=email,
@@ -35,8 +37,8 @@ class AuthService:
         user = await self._users.get(username)
         # Verify against a real hash either way, so a nonexistent username fails no faster than a
         # wrong password for one that exists.
-        password_hash = user.password_hash if user else dummy_password_hash()
-        password_ok = verify_password(password, password_hash)
+        password_hash = user.password_hash if user else self._passwords.dummy_hash()
+        password_ok = self._passwords.verify(password, password_hash)
         if not (user and password_ok):
             raise InvalidCredentialsError("Invalid username or password.")
         return self._tokens.issue(user.username)

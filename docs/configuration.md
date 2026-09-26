@@ -24,6 +24,9 @@ default below. Copy `server/.env.example` to start, and restart the server after
 | `GEMINI_EMBEDDING_TOKENS_PER_MINUTE` | `30000` | Embedding requests are grouped and paced under this limit |
 | `GEMINI_TIMEOUT_SECONDS` | `60` | Per-request timeout |
 | `GEMINI_MAX_RETRIES` | `1` | Attempts per request before giving up (or moving to the fallback model) |
+| `GROQ_MODEL` | `llama-3.3-70b-versatile` | Groq text model (answers, review judgement, tool choice). Must support tool calling |
+| `GROQ_TIMEOUT_SECONDS` / `GROQ_MAX_RETRIES` | `60` / `1` | As for Gemini |
+| `LLM_FALLBACK_PROVIDER` | empty | A second text provider (e.g. `groq`) used when `LLM_PROVIDER`'s models are rate-limited. Needs that provider's key. Empty disables it; embeddings and captions never switch |
 | `MAX_UPLOAD_BYTES` | `10485760` (10 MB) | Largest accepted upload |
 | `CHUNK_MAX_TOKENS` / `CHUNK_OVERLAP_TOKENS` | `500` / `50` | Chunk size and overlap. Changing either re-indexes a file on its next upload |
 | `MIN_IMAGE_DIMENSION_PX` | `100` | Images smaller than this on their shortest side are skipped (icons, avatars, spacers) |
@@ -33,8 +36,9 @@ default below. Copy `server/.env.example` to start, and restart the server after
 | `NODE_BINARY` | `node` | Node.js executable used to run the helper |
 | `LINT_TIMEOUT_SECONDS` | `20` | Longest a single lint may take before `502 linter_failed` |
 
-`gemini` is implemented for all three provider settings; `groq` and `openrouter` are not yet (see
-[architecture](architecture.md#model-providers-current-status)). Check which models your key can use, and their free
+`gemini` is implemented for all three provider settings and `groq` for `LLM_PROVIDER` / `LLM_FALLBACK_PROVIDER`;
+`openrouter` is not yet (see [architecture](architecture.md#model-providers-current-status)). Groq's free limits are at
+https://console.groq.com/docs/rate-limits. Check which models your key can use, and their free
 limits, at https://aistudio.google.com/rate-limit; model IDs change over time, so set them here rather than in code.
 Free-tier Gemini inputs may be used by Google to improve its products, so upload only non-confidential documents.
 

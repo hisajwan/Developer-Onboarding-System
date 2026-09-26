@@ -8,6 +8,7 @@ from collections.abc import Awaitable, Callable
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
 from app.core.config import Settings
+from app.infrastructure import model_calls
 from app.infrastructure.gemini.errors import gemini_errors
 from app.infrastructure.provider_registry import require_api_key
 
@@ -47,11 +48,13 @@ class GeminiEmbedder:
         for position, group in enumerate(self._groups(texts)):
             if position > 0:
                 await self._sleep(_WINDOW_SECONDS)
+            model_calls.count("gemini", self.model_name, "embed")
             with gemini_errors("embedding document chunks"):
                 vectors.extend(await self._client.aembed_documents(group))
         return vectors
 
     async def embed_query(self, text: str) -> list[float]:
+        model_calls.count("gemini", self.model_name, "embed")
         with gemini_errors("embedding the question"):
             return await self._client.aembed_query(text)
 

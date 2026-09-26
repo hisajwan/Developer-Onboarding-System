@@ -18,3 +18,7 @@ class ProjectRegistry(Protocol):
     async def rename(self, project_id: str, name: str) -> Project | None:
         """Renames an existing project and bumps `updated_at`; None if it doesn't exist."""
         ...
+
+    async def delete(self, project_id: str) -> None:
+        """Removes the project row; a no-op if it doesn't exist."""
+        ...

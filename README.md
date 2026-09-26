@@ -27,9 +27,10 @@ docs/          architecture, database, API, configuration, development
   (images and PDF diagrams are captioned first). Re-uploading an unchanged file is skipped; files can be deleted.
 - **Ask**: chat about the project's docs; answers are formatted (Markdown) and cite only the files they used. Each project can have several chat sessions;
   they share the project's docs but keep separate history. Pasting code into the chat routes it to code review.
-- **Code review**: paste a React / TypeScript / JavaScript snippet and get categorised feedback (accessibility, security,
-  test, style) from ESLint plus the model's judgement.
-- **Dashboard**: usage overview (sample data for now).
+- **Code review**: paste a React / TypeScript / JavaScript snippet, or a unified diff (`git diff` output), and get
+  categorised feedback (accessibility, security, test, style) from ESLint plus the model's judgement. A diff is reviewed
+  on its added and changed lines only, with findings tagged by file and new-file line.
+- **Dashboard**: the current project's questions and reviews this week, documents indexed, and recent activity.
 
 ## Run it
 
@@ -70,7 +71,18 @@ size, and code review shows ESLint results only (ESLint itself is real and runs 
 To use Gemini, create a free key at https://aistudio.google.com, then in `server/.env` set `GEMINI_API_KEY` and
 `LLM_PROVIDER=gemini`, `EMBEDDING_PROVIDER=gemini`, `CAPTION_PROVIDER=gemini`, and restart the server. Model IDs and
 limits are in [configuration](docs/configuration.md). Documents indexed under another embedding model must be
-re-uploaded. Keys stay in `server/.env`, never in `client/`. Groq and OpenRouter are not implemented yet.
+re-uploaded. Keys stay in `server/.env`, never in `client/`.
+
+Groq can serve the text model instead (`LLM_PROVIDER=groq`, `GROQ_API_KEY`), or act as a backup: with
+`LLM_FALLBACK_PROVIDER=groq`, answers and reviews move to Groq when Gemini's models are rate-limited. Embeddings and
+captions stay on Gemini. OpenRouter is not implemented yet.
+
+### Evaluation
+
+`server/scripts/evaluate.py` runs a set of questions and/or code snippets against one project and writes CSV files:
+answers, retrieved and cited files, review findings by category, time taken and model calls per case. It does not
+touch chat history or the dashboard, and asks before calling a real provider. Sample inputs are in
+`server/scripts/evaluation-examples/`; run `python scripts/evaluate.py --help` from `server/` for the options.
 
 ## API
 
@@ -86,6 +98,7 @@ request/response shapes and error codes are in the [API reference](docs/api.md).
 | Chat sessions | `GET /projects/{id}/sessions`, `POST /projects/{id}/sessions` |
 | Chat | `POST /projects/{id}/sessions/{session_id}/chat`, `GET /projects/{id}/sessions/{session_id}/chat/history` |
 | Code review | `POST /projects/{id}/reviews` |
+| Dashboard | `GET /projects/{id}/stats` |
 
 ## Checks
 

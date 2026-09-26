@@ -22,9 +22,9 @@ flowchart LR
     T2 --> S2
     S2 --> L[ESLint helper<br/>Node subprocess]
     T1 --> V[(Chroma<br/>vectors)]
-    F --> DB[(SQLite<br/>users, projects, sessions,<br/>messages, documents)]
+    F --> DB[(SQLite<br/>users, projects, sessions,<br/>messages, documents, activity)]
     F --> D[(Disk<br/>uploaded files)]
-    T1 & S2 & F -.->|LLM / embeddings / captions| M[Model provider<br/>fake, Gemini, Groq, OpenRouter]
+    T1 & S2 & F -.->|LLM / embeddings / captions| M[Model provider<br/>fake, Gemini, Groq]
 ```
 
 - The browser only ever calls `/api/backend/*` on the Next.js origin. `client/next.config.ts` rewrites that to
@@ -108,7 +108,8 @@ flowchart LR
    model ends with a `SOURCES:` line naming the files it used; the tool strips it and cites only those (none when the
    documents don't cover the question; all retrieved files if the model omits the line). If the project has nothing
    indexed it says so without calling the LLM. (There is no relevance threshold: the top 4 chunks are always used.)
-4. The user message and the reply are saved to the session.
+4. The user message and the reply are saved to the session, and one activity row is recorded for the dashboard (a
+   question, or a review if `review_code` answered).
 
 ### Code review
 
@@ -125,8 +126,28 @@ flowchart LR
 4. If the model's reply is not valid review JSON, the result falls back to the ESLint findings and says so
    (`judgement_available: false`). A snippet that doesn't parse is reported and the model is not called.
 
-The Code review screen calls `POST /projects/{id}/reviews` directly; code pasted into Ask reaches the same service
-through the agent's `review_code` tool.
+A pasted **unified diff** (`git diff` output) is detected and reviewed as one (`app/review/diff.py`): for each changed
+`.js`/`.jsx`/`.ts`/`.tsx` file, each hunk's new-side code is linted, only findings on added or changed lines are kept
+and mapped to the file and its new line number, and the model is asked to comment on the added lines only. Other files
+are skipped with a note; a hunk ESLint can't parse on its own (a fragment) is left to the model, also with a note.
+
+The Code review screen calls `POST /projects/{id}/reviews` directly (through `ProjectReviewService`, which also records
+an activity row); code pasted into Ask reaches the same reviewer through the agent's `review_code` tool.
+
+### Dashboard
+
+Activity is recorded where it happens (`ChatService` after each turn, `ProjectReviewService` after each review) into
+the `activity` table through the `ActivityLog` port. `ActivityService` reads it back for `GET /projects/{id}/stats`:
+questions and reviews in the last 7 days and in total, the number of indexed documents, and the latest 10 events. The
+Dashboard page shows the current project only.
+
+### Evaluation
+
+`scripts/evaluate.py` runs question and snippet sets through `EvaluationService` with the same agent and reviewer the
+app uses, but each question gets no chat history and nothing is recorded to history or activity. Per case it writes
+the answer, the retrieved and cited files, findings by source and category, the time taken, and the model calls
+made, counted by the real adapters in `app/infrastructure/model_calls.py` (one per request, including rate-limited
+attempts and fallbacks).
 
 ## Frontend structure
 
@@ -145,8 +166,8 @@ the first session if it no longer exists or storage is unavailable; panel collap
 |---|---|---|---|
 | `Embedder` | Chunk and query embeddings | Hashes words into 256-d vectors (shared words = similar) | **Gemini** (`GEMINI_EMBEDDING_MODEL`, default `gemini-embedding-001`) |
 | `ImageCaptioner` | Captions for images at ingestion | Describes the image by type, size and hash | **Gemini** vision (`GEMINI_MODEL`) |
-| `LLMClient` | Answers, review judgement | Echoes the prompt | **Gemini** (`GEMINI_MODEL`); Groq, OpenRouter: stubs, not implemented |
-| Chat model (LangChain) | The agent's tool choice | Code-looking input to `review_code`, else the first tool | **Gemini** (`GEMINI_MODEL`); Groq, OpenRouter: stubs, not implemented |
+| `LLMClient` | Answers, review judgement | Echoes the prompt | **Gemini** (`GEMINI_MODEL`), **Groq** (`GROQ_MODEL`); OpenRouter: stub, not implemented |
+| Chat model (LangChain) | The agent's tool choice | Code-looking input to `review_code`, else the first tool | **Gemini** (`GEMINI_MODEL`), **Groq** (`GROQ_MODEL`); OpenRouter: stub, not implemented |
 
 `fake` is the default: no API keys, no network. With `gemini`, all Gemini adapters share one chat model setup
 (`app/infrastructure/gemini/`):
@@ -156,6 +177,11 @@ the first session if it no longer exists or storage is unavailable; panel collap
   same request is retried once on the fallback, which has its own separate free quota.
 - **Errors** become the app's own: a rate limit is `429 model_rate_limited`; a rejected key, unknown model or outage
   is `502 model_provider_error` with a readable message.
+- **Streaming is off** on the chat models: the agent calls the model through `astream`, which would otherwise bypass
+  the error mapping and the fallback. Replies are never streamed to the browser anyway.
+- **Provider fallback** (`LLM_FALLBACK_PROVIDER`, optional, e.g. `groq`): when every Gemini model is rate-limited, the
+  answer, review judgement and tool choice move to that provider (`app/infrastructure/groq/`, same error mapping).
+  Embeddings and captions stay on Gemini, since the vector index is tied to one embedding model.
 - **Embeddings** are sent in groups that stay under `GEMINI_EMBEDDING_TOKENS_PER_MINUTE`, pausing a minute between
   groups, so a large upload is slower rather than rejected.
 - Each embedding model has its **own Chroma collection**, because vectors of different sizes can't share one.
@@ -165,13 +191,14 @@ ESLint is real in every mode: it runs locally and needs no API key.
 
 ## Known limitations
 
-- **Groq and OpenRouter are not implemented**; Gemini is the only real provider.
-- **Dashboard** shows sample data; usage is not recorded yet, so there are no real stats.
+- **OpenRouter is not implemented**. Groq serves text only; Gemini is the only embedding and caption provider.
+- **Dashboard** covers the current project only, and counts start from when activity recording was added.
 - **Retrieval** always uses the top 4 chunks, with no relevance threshold; unrelated questions still reach the model,
   which is told to say it doesn't know.
 - **Chat memory** covers the latest 50 messages of a session.
 - **Reviews** are not stored; the Code review screen keeps only the latest result, in the browser.
 - **No deletion** of projects, chat sessions or accounts, and **no renaming** of sessions, through the API.
 - **No login rate limiting**, and no password reset in the app (operator script only).
-- **Creating a project** writes the project and its first session separately, not in one transaction.
+- **Creating a project** writes the project and its first session separately, not in one transaction; a failed
+  session write deletes the project again rather than leaving it without a session.
 - **SQLite and Chroma** suit one server process on one machine; they are not set up for several instances.

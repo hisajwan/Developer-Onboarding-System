@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import SecretStr
+from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 LLMProviderName = Literal["fake", "gemini", "groq", "openrouter"]
@@ -37,6 +37,20 @@ class Settings(BaseSettings):
     gemini_timeout_seconds: float = 60.0
     gemini_max_retries: int = 1
     groq_api_key: SecretStr | None = None
+    # Groq model (see https://console.groq.com/docs/rate-limits); must support tool calling.
+    groq_model: str = "llama-3.3-70b-versatile"
+    groq_timeout_seconds: float = 60.0
+    groq_max_retries: int = 1
+    # Another text provider to switch to when LLM_PROVIDER's models are all rate-limited (after
+    # Gemini's own fallback model). Empty disables it. Embeddings and captions never switch.
+    llm_fallback_provider: LLMProviderName | None = None
+
+    @field_validator("llm_fallback_provider", mode="before")
+    @classmethod
+    def _blank_means_none(cls, value: object) -> object:
+        # `LLM_FALLBACK_PROVIDER=` in .env arrives as "", which should mean "no fallback".
+        return None if isinstance(value, str) and not value.strip() else value
+
     openrouter_api_key: SecretStr | None = None
 
     # Login: accounts live in the users table (see scripts/create_user.py), not here. This secret

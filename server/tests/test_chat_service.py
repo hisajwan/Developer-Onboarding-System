@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from app.domain.models import AgentReply, ChatMessage, ChatRole
+from app.domain.models import ActivityEvent, AgentReply, ChatMessage, ChatRole
 from app.schemas.chat import ChatRequest
 from app.services.chat_service import ChatService
 
@@ -36,6 +36,20 @@ class FakeHistory:
         ][-limit:]
 
 
+class FakeActivity:
+    def __init__(self) -> None:
+        self.events: list[ActivityEvent] = []
+
+    async def record(self, event: ActivityEvent) -> None:
+        self.events.append(event)
+
+    async def recent(self, project_id: str, limit: int = 10) -> list[ActivityEvent]:
+        return self.events[::-1][:limit]
+
+    async def count(self, project_id: str, kind: str, since=None) -> int:
+        return sum(1 for event in self.events if event.kind == kind)
+
+
 @pytest.fixture
 def agent() -> RecordingAgent:
     return RecordingAgent(AgentReply(content="Run npm install.", sources=("dev-setup.md",)))
@@ -47,8 +61,13 @@ def history() -> FakeHistory:
 
 
 @pytest.fixture
-def service(agent: RecordingAgent, history: FakeHistory) -> ChatService:
-    return ChatService(agent, history, "session-1")
+def activity() -> FakeActivity:
+    return FakeActivity()
+
+
+@pytest.fixture
+def service(agent: RecordingAgent, history: FakeHistory, activity: FakeActivity) -> ChatService:
+    return ChatService(agent, history, "session-1", activity=activity, project_id="project-1")
 
 
 @pytest.mark.anyio
@@ -91,7 +110,9 @@ async def test_handle_does_not_leak_another_sessions_history(
     agent: RecordingAgent, history: FakeHistory
 ) -> None:
     await history.append("other-session", "user", "not mine")
-    service = ChatService(agent, history, "session-1")
+    service = ChatService(
+        agent, history, "session-1", activity=FakeActivity(), project_id="project-1"
+    )
 
     await service.handle(ChatRequest(message="hello"))
 
@@ -108,3 +129,29 @@ async def test_get_history_returns_this_sessions_saved_messages(
     messages = await service.get_history()
 
     assert [m.content for m in messages] == ["hi"]
+
+
+@pytest.mark.anyio
+async def test_a_question_is_recorded_as_question_activity(
+    service: ChatService, activity: FakeActivity
+) -> None:
+    await service.handle(ChatRequest(message="How do I set up?"))
+
+    [event] = activity.events
+    assert (event.project_id, event.kind, event.source) == ("project-1", "question", "ask")
+    assert (event.title, event.detail) == ("How do I set up?", "Run npm install.")
+
+
+@pytest.mark.anyio
+async def test_code_pasted_into_chat_is_recorded_as_a_review(history: FakeHistory) -> None:
+    activity = FakeActivity()
+    agent = RecordingAgent(
+        AgentReply(content="One issue.\n\n- **style** · x", tools_used=("review_code",))
+    )
+    service = ChatService(agent, history, "s", activity=activity, project_id="p")
+
+    await service.handle(ChatRequest(message="Please review:\n```tsx\nconst a = 1;\n```"))
+
+    [event] = activity.events
+    assert (event.kind, event.source) == ("review", "ask")
+    assert (event.title, event.detail) == ("Reviewed: const a = 1;", "One issue.")

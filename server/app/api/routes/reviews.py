@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.deps import CodeReviewServiceDep, OwnedProjectDep
+from app.api.deps import OwnedProjectDep, ProjectReviewServiceDep
 from app.schemas.reviews import ReviewRequest, ReviewResponse
 
 router = APIRouter(prefix="/projects/{project_id}", tags=["reviews"])
@@ -8,8 +8,7 @@ router = APIRouter(prefix="/projects/{project_id}", tags=["reviews"])
 
 @router.post("/reviews", response_model=ReviewResponse)
 async def review_code(
-    request: ReviewRequest, project: OwnedProjectDep, service: CodeReviewServiceDep
+    request: ReviewRequest, project: OwnedProjectDep, service: ProjectReviewServiceDep
 ) -> ReviewResponse:
-    # `project` is only the ownership check: a review reads no project data.
-    review = await service.review(request.code, request.language)
+    review = await service.review(project.id, request.code, request.language)
     return ReviewResponse.from_domain(review)

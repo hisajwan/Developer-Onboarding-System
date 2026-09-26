@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 from app.domain.models import (
@@ -22,6 +24,7 @@ class ReviewFindingResponse(BaseModel):
     source: ReviewSource
     line: int | None
     rule_id: str | None
+    file: str | None
 
     @classmethod
     def from_domain(cls, finding: ReviewFinding) -> "ReviewFindingResponse":
@@ -32,6 +35,7 @@ class ReviewFindingResponse(BaseModel):
             source=finding.source,
             line=finding.line,
             rule_id=finding.rule_id,
+            file=finding.file,
         )
 
 
@@ -40,6 +44,8 @@ class ReviewResponse(BaseModel):
     summary: str
     judgement_available: bool
     parse_error: str | None
+    kind: Literal["snippet", "diff"]
+    notes: list[str]
 
     @classmethod
     def from_domain(cls, review: CodeReview) -> "ReviewResponse":
@@ -48,4 +54,6 @@ class ReviewResponse(BaseModel):
             summary=review.summary,
             judgement_available=review.judgement_available,
             parse_error=review.parse_error,
+            kind=review.kind,
+            notes=list(review.notes),
         )
