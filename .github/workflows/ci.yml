@@ -28,7 +28,15 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: server/requirements*.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/lint/package-lock.json
       - run: pip install -r requirements-dev.txt
+      # The snippet linter used by code review; without it the ESLint tests are skipped.
+      - run: npm ci
+        working-directory: server/lint
       - run: ruff check .
       - run: pytest
 

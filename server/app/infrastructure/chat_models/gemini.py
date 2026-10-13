@@ -1,35 +1,10 @@
-"""Gemini tool-calling chat model. Placeholder: the real SDK call is not wired yet."""
+"""The agent's tool-calling chat model on Gemini (main model + rate-limit fallback)."""
 
-from typing import Any
-
-from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import BaseMessage
-from langchain_core.outputs import ChatResult
-from pydantic import SecretStr
+from langchain_core.runnables import Runnable
 
 from app.core.config import Settings
-from app.infrastructure.provider_registry import require_api_key
+from app.infrastructure.gemini.chat import build_gemini_chat
 
 
-class GeminiToolCallingChatModel(BaseChatModel):
-    api_key: SecretStr
-
-    @classmethod
-    def from_settings(cls, settings: Settings) -> "GeminiToolCallingChatModel":
-        return cls(api_key=require_api_key(settings.gemini_api_key, "GEMINI_API_KEY"))
-
-    @property
-    def _llm_type(self) -> str:
-        return "gemini-tool-calling"
-
-    def bind_tools(self, tools: list[Any], *, tool_choice: str | None = None, **kwargs: Any):
-        return self.bind(tools=tools)
-
-    def _generate(
-        self,
-        messages: list[BaseMessage],
-        stop: list[str] | None = None,
-        run_manager: Any = None,
-        **kwargs: Any,
-    ) -> ChatResult:
-        raise NotImplementedError("Gemini agent generation is not implemented yet.")
+def create_gemini_chat_model(settings: Settings) -> Runnable:
+    return build_gemini_chat(settings)

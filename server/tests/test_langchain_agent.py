@@ -42,13 +42,20 @@ def test_satisfies_the_agent_port() -> None:
 
 @pytest.mark.anyio
 async def test_the_tools_answer_and_sources_reach_the_reply() -> None:
-    tool = RecordingTool(ToolResult(content="Run npm install.", sources=("dev-setup.md",)))
+    tool = RecordingTool(
+        ToolResult(
+            content="Run npm install.",
+            sources=("dev-setup.md",),
+            retrieved=("dev-setup.md", "README.md"),
+        )
+    )
     agent = make_agent(tool)
 
     reply = await agent.run("How do I set up the dev environment?")
 
     assert reply.content == "Run npm install."
     assert reply.sources == ("dev-setup.md",)
+    assert reply.retrieved == ("dev-setup.md", "README.md")
     assert reply.tools_used == ("retrieve_and_answer",)
     assert tool.calls == ["How do I set up the dev environment?"]
 

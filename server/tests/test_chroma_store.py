@@ -4,7 +4,7 @@ import pytest
 
 from app.domain.models import Chunk, ChunkRecord
 from app.domain.ports import VectorStore
-from app.infrastructure.vectorstore.chroma_store import ChromaVectorStore
+from app.infrastructure.vectorstore.chroma_store import ChromaVectorStore, collection_name_for
 
 PROJECT = "proj-1"
 OTHER_PROJECT = "proj-2"
@@ -162,3 +162,28 @@ async def test_removing_stale_chunks_in_one_project_leaves_the_other_alone(
 
     assert await store.existing_ids(PROJECT, ["p1-1"]) == set()
     assert await store.existing_ids(OTHER_PROJECT, ["p2-1"]) == {"p2-1"}
+
+
+@pytest.mark.parametrize(
+    ("model", "expected"),
+    [
+        ("fake-hash-256", "documents-fake-hash-256"),
+        ("gemini-embedding-001", "documents-gemini-embedding-001"),
+        ("models/text embedding:v2", "documents-models-text-embedding-v2"),
+    ],
+)
+def test_each_embedding_model_gets_its_own_valid_collection_name(model: str, expected: str) -> None:
+    assert collection_name_for(model) == expected
+
+
+@pytest.mark.anyio
+async def test_vectors_of_a_different_size_go_to_their_own_collection(tmp_path: Path) -> None:
+    path = tmp_path / "chroma"
+    small = ChromaVectorStore(path, collection_name_for("small-model"))
+    large = ChromaVectorStore(path, collection_name_for("large-model"))
+
+    await small.upsert("p", [ChunkRecord("a", Chunk(text="x", source="s.md", index=0), [1.0, 0.0])])
+    await large.upsert("p", [ChunkRecord("b", Chunk(text="y", source="s.md", index=0), [0.0] * 8)])
+
+    assert await small.existing_ids("p", ["a", "b"]) == {"a"}
+    assert await large.existing_ids("p", ["a", "b"]) == {"b"}

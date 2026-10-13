@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { createChatSession, listChatSessions } from "@/lib/api/chatSessions";
+import { readStored, writeStored } from "@/lib/storage";
 import type { ChatSession } from "@/types/chatSession";
 import { useProjectContext } from "./ProjectProvider";
 
@@ -15,10 +16,16 @@ interface ChatSessionContextValue {
 
 const ChatSessionContext = createContext<ChatSessionContextValue | null>(null);
 
+// Project ids are unique per owner, so the project id alone scopes this to one user's project.
+function lastSessionKey(projectId: string): string {
+  return `last-chat-session:${projectId}`;
+}
+
 /**
  * A project's conversation threads. Every project starts with one ("Session 1", created
  * server-side alongside the project itself); this just tracks which one is active and lets Ask
- * mode start a new one. Reloads whenever the active project changes.
+ * mode start a new one. Reloads whenever the active project changes, reopening the session that
+ * was last open in that project (remembered in this browser) if it still exists.
  */
 export function ChatSessionProvider({ children }: { children: ReactNode }) {
   const { currentProjectId } = useProjectContext();
@@ -40,7 +47,9 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
         const list = await listChatSessions(currentProjectId);
         if (cancelled) return;
         setSessions(list);
-        setCurrentSessionId(list[0]?.id ?? null);
+        const remembered = readStored(lastSessionKey(currentProjectId));
+        const reopened = list.find((session) => session.id === remembered) ?? list[0];
+        setCurrentSessionId(reopened?.id ?? null);
       } catch {
         // Leaves sessions empty; Ask mode's own empty state covers this.
       } finally {
@@ -54,9 +63,13 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
     };
   }, [currentProjectId]);
 
-  const selectSession = useCallback((sessionId: string) => {
-    setCurrentSessionId(sessionId);
-  }, []);
+  const selectSession = useCallback(
+    (sessionId: string) => {
+      setCurrentSessionId(sessionId);
+      if (currentProjectId) writeStored(lastSessionKey(currentProjectId), sessionId);
+    },
+    [currentProjectId],
+  );
 
   const createSession = useCallback(async () => {
     if (!currentProjectId) throw new Error("No project selected.");
@@ -64,6 +77,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
     const session = await createChatSession(currentProjectId, `Session ${ordinal}`);
     setSessions((current) => [...current, session]);
     setCurrentSessionId(session.id);
+    writeStored(lastSessionKey(currentProjectId), session.id);
     return session;
   }, [currentProjectId, sessions.length]);
 

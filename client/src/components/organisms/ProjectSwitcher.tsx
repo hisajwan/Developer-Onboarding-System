@@ -1,6 +1,7 @@
 "use client";
 
 import { useProjectContext } from "@/app/(app)/ProjectProvider";
+import { Select } from "@/components/atoms/Select";
 
 /**
  * Lets a user switch between their own projects, or open the create-project screen for a new one
@@ -20,11 +21,11 @@ export function ProjectSwitcher() {
 
   return (
     <div className="flex items-center gap-2">
-      <select
+      <Select
+        size="md"
         value={currentProjectId ?? ""}
         onChange={(event) => selectProject(event.target.value)}
         aria-label="Project"
-        className="rounded-md border border-border bg-canvas px-2 py-1.5 text-sm outline-none focus:border-primary"
       >
         {currentProjectId === null && (
           <option value="" disabled>
@@ -36,7 +37,7 @@ export function ProjectSwitcher() {
             {project.name}
           </option>
         ))}
-      </select>
+      </Select>
       <button
         type="button"
         onClick={openCreateScreen}

@@ -1,3 +1,4 @@
+import { Markdown } from "@/components/atoms/Markdown";
 import { cn } from "@/lib/cn";
 import type { ChatMessage } from "@/types/chat";
 
@@ -11,8 +12,13 @@ export function MessageBubble({ role, content, source }: Omit<ChatMessage, "id">
           isUser ? "bg-primary text-primary-contrast" : "bg-bubble text-ink",
         )}
       >
-        <p>{content}</p>
-        {source && <p className="mt-1 text-xs text-muted">Source: {source}</p>}
+        {isUser ? (
+          // What the user typed, as typed: line breaks and pasted code kept.
+          <p className="whitespace-pre-wrap break-words">{content}</p>
+        ) : (
+          <Markdown>{content}</Markdown>
+        )}
+        {source && <p className="mt-2 text-xs text-muted">Source: {source}</p>}
       </div>
     </div>
   );

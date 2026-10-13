@@ -12,6 +12,7 @@ from app.domain.ports import (
     VectorStore,
 )
 from app.ingestion.chunker import chunk_text
+from app.ingestion.embedding_input import EMBEDDING_INPUT_VERSION, embedding_input
 from app.ingestion.filenames import safe_filename
 from app.ingestion.ids import chunk_id, content_hash
 
@@ -51,7 +52,10 @@ class IngestionService:
 
     @property
     def _index_signature(self) -> str:
-        return f"{self._embedder.model_name}|{self._chunk_max_tokens}|{self._chunk_overlap_tokens}"
+        return (
+            f"{self._embedder.model_name}|{EMBEDDING_INPUT_VERSION}"
+            f"|{self._chunk_max_tokens}|{self._chunk_overlap_tokens}"
+        )
 
     async def ingest(self, project_id: str, filename: str, content: bytes) -> IngestionResult:
         name = safe_filename(filename)
@@ -100,7 +104,9 @@ class IngestionService:
         ]
 
         if missing:
-            embeddings = await self._embedder.embed_documents([chunk.text for _, chunk in missing])
+            embeddings = await self._embedder.embed_documents(
+                [embedding_input(chunk) for _, chunk in missing]
+            )
             await self._vectors.upsert(
                 project_id,
                 [

@@ -1,0 +1,12 @@
+[
+  {
+    "id": "q1",
+    "question": "How do I set up the development environment?",
+    "expected_sources": ["README.md"]
+  },
+  {
+    "id": "q2",
+    "question": "Which payment provider does the project use?",
+    "expected_sources": []
+  }
+]

@@ -58,6 +58,9 @@ class FakeProjects:
         self.projects[project_id] = renamed
         return renamed
 
+    async def delete(self, project_id: str) -> None:
+        self.projects.pop(project_id, None)
+
 
 @pytest.fixture
 def users() -> FakeUsers:

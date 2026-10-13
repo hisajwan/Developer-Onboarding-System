@@ -45,6 +45,27 @@ class DocumentTooLargeError(AppError):
     code = "document_too_large"
 
 
+class LinterError(AppError):
+    """The snippet linter ran but failed (crashed, timed out, or returned something unreadable)."""
+
+    status_code = 502
+    code = "linter_failed"
+
+
+class ModelRateLimitedError(AppError):
+    """The model provider refused the call because a rate limit or daily quota was hit."""
+
+    status_code = 429
+    code = "model_rate_limited"
+
+
+class ModelProviderError(AppError):
+    """The model provider failed the call (bad key, unknown model, outage, invalid request)."""
+
+    status_code = 502
+    code = "model_provider_error"
+
+
 class ConfigurationError(AppError):
     status_code = 500
     code = "configuration_error"

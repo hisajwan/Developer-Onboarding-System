@@ -17,3 +17,6 @@ server/data/
 
 # local working notes
 /Dev
+
+# node (the server-side snippet linter; client/ has its own .gitignore)
+node_modules/

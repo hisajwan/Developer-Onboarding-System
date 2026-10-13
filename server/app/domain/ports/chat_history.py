@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from typing import Protocol, runtime_checkable
 
 from app.domain.models import ChatMessage, ChatRole
@@ -10,7 +11,9 @@ class ChatHistory(Protocol):
     reload.
     """
 
-    async def append(self, session_id: str, role: ChatRole, content: str) -> None: ...
+    async def append(
+        self, session_id: str, role: ChatRole, content: str, sources: Sequence[str] = ()
+    ) -> None: ...
 
     async def list_for_session(self, session_id: str, limit: int = 50) -> list[ChatMessage]:
         """Oldest first, capped to the most recent `limit` messages."""

@@ -1,0 +1,14 @@
+[
+  {
+    "id": "s1",
+    "code": "export function Avatar({ src }: { src: string }) {\n  return <img src={src} />;\n}",
+    "language": "tsx",
+    "expected_categories": ["accessibility"]
+  },
+  {
+    "id": "s2",
+    "code": "export function Preview({ html }: { html: string }) {\n  return <div dangerouslySetInnerHTML={{ __html: html }} />;\n}",
+    "language": "tsx",
+    "expected_categories": ["security"]
+  }
+]

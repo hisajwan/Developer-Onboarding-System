@@ -1,12 +1,13 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
-export type BadgeTone = "warning" | "danger" | "primary";
+export type BadgeTone = "warning" | "danger" | "primary" | "accent";
 
 const TONES: Record<BadgeTone, string> = {
   warning: "bg-warning-soft text-warning",
   danger: "bg-danger-soft text-danger",
   primary: "bg-primary-soft text-primary",
+  accent: "bg-accent-soft text-accent",
 };
 
 export function Badge({ tone, children }: { tone: BadgeTone; children: ReactNode }) {

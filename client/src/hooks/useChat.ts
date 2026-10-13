@@ -33,6 +33,7 @@ export function useChat(projectId: string | null, sessionId: string | null) {
             id: crypto.randomUUID(),
             role: message.role,
             content: message.content,
+            source: message.sources.join(", ") || undefined,
           })),
         );
       } catch {

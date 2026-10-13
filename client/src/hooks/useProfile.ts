@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ApiError } from "@/lib/api/http";
-import { getProfile, updateProfile } from "@/lib/api/profile";
+import { changePassword, getProfile, updateProfile } from "@/lib/api/profile";
 import type { Profile } from "@/types/profile";
 
 export function useProfile() {
@@ -38,5 +38,5 @@ export function useProfile() {
     return updated;
   }, []);
 
-  return { profile, isLoading, error, save };
+  return { profile, isLoading, error, save, changePassword };
 }

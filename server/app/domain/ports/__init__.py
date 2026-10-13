@@ -1,14 +1,18 @@
 """Ports: the abstractions that services depend on. Adapters live in `app.infrastructure`."""
 
+from app.domain.ports.activity_log import ActivityLog
 from app.domain.ports.agent import Agent
 from app.domain.ports.chat_history import ChatHistory
 from app.domain.ports.chat_session_registry import ChatSessionRegistry
+from app.domain.ports.code_linter import CodeLinter
+from app.domain.ports.code_reviewer import CodeReviewer
 from app.domain.ports.document_reader import DocumentReader
 from app.domain.ports.document_registry import DocumentRegistry
 from app.domain.ports.document_store import DocumentStore
 from app.domain.ports.embeddings import Embedder
 from app.domain.ports.image_captioner import ImageCaptioner
 from app.domain.ports.llm import LLMClient
+from app.domain.ports.password_hasher import PasswordHasher
 from app.domain.ports.project_registry import ProjectRegistry
 from app.domain.ports.session_tokens import SessionTokens
 from app.domain.ports.tool import Tool
@@ -16,15 +20,19 @@ from app.domain.ports.user_registry import UserRegistry
 from app.domain.ports.vector_store import VectorStore
 
 __all__ = [
+    "ActivityLog",
     "Agent",
     "ChatHistory",
     "ChatSessionRegistry",
+    "CodeLinter",
+    "CodeReviewer",
     "DocumentReader",
     "DocumentRegistry",
     "DocumentStore",
     "Embedder",
     "ImageCaptioner",
     "LLMClient",
+    "PasswordHasher",
     "ProjectRegistry",
     "SessionTokens",
     "Tool",

@@ -7,6 +7,7 @@ from app.domain.models import ChatSession, Project, User
 from app.infrastructure.auth.passwords import hash_password
 from app.services.chat_session_service import ChatSessionService
 from app.services.project_service import ProjectService
+from app.services.project_setup_service import ProjectSetupService
 
 
 class FakeUsers:
@@ -43,6 +44,9 @@ class FakeProjects:
 
     async def rename(self, project_id: str, name: str) -> Project | None:
         return None
+
+    async def delete(self, project_id: str) -> None:
+        self.projects.pop(project_id, None)
 
 
 class FakeSessions:
@@ -141,3 +145,30 @@ async def test_get_owned_session_rejects_an_unknown_session(
 
     with pytest.raises(NotFoundError):
         await service.get_owned_session("dev", project.id, "no-such-session")
+
+
+class FailingSessions(FakeSessions):
+    async def create(self, session: ChatSession) -> None:
+        raise OSError("disk full")
+
+
+@pytest.mark.anyio
+async def test_a_new_project_starts_with_session_1(
+    service: ChatSessionService, project_service: ProjectService
+) -> None:
+    project = await ProjectSetupService(project_service, service).create_project("dev", "Mine")
+
+    assert [s.name for s in await service.list_sessions("dev", project.id)] == ["Session 1"]
+
+
+@pytest.mark.anyio
+async def test_a_project_whose_first_session_fails_is_not_left_behind(
+    projects: FakeProjects, project_service: ProjectService
+) -> None:
+    failing = ChatSessionService(project_service, FailingSessions())
+    setup = ProjectSetupService(project_service, failing)
+
+    with pytest.raises(OSError):
+        await setup.create_project("dev", "Mine")
+
+    assert projects.projects == {}

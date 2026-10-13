@@ -109,12 +109,15 @@ class ChatMessage:
     role: ChatRole
     content: str
     created_at: datetime
+    sources: tuple[str, ...] = ()  # the files an assistant answer cited
 
 
 @dataclass(frozen=True, slots=True)
 class ToolResult:
     content: str
     sources: tuple[str, ...] = ()
+    # Every file retrieval returned, cited or not (so retrieval can be evaluated on its own).
+    retrieved: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -122,3 +125,77 @@ class AgentReply:
     content: str
     sources: tuple[str, ...] = ()
     tools_used: tuple[str, ...] = field(default_factory=tuple)
+    retrieved: tuple[str, ...] = ()
+
+
+ReviewCategory = Literal["accessibility", "security", "test", "style"]
+ReviewSeverity = Literal["error", "warning", "suggestion"]
+ReviewSource = Literal["eslint", "model"]
+SnippetLanguage = Literal["tsx", "ts", "jsx", "js"]
+
+
+@dataclass(frozen=True, slots=True)
+class LintMessage:
+    """One ESLint result for a snippet. `rule_id` is None for a parse error."""
+
+    rule_id: str | None
+    message: str
+    line: int | None
+    column: int | None
+    severity: Literal["error", "warning"]
+
+
+@dataclass(frozen=True, slots=True)
+class ReviewFinding:
+    category: ReviewCategory
+    message: str
+    severity: ReviewSeverity
+    source: ReviewSource
+    line: int | None = None
+    rule_id: str | None = None
+    file: str | None = None  # set when a diff was reviewed
+
+
+@dataclass(frozen=True, slots=True)
+class CodeReview:
+    """ESLint findings plus the model's judgement for one snippet or one diff.
+
+    `judgement_available` is False when the model's reply could not be read as review JSON, in
+    which case only ESLint findings are present. `parse_error` is set when the snippet is not valid
+    code at all (or a diff has nothing reviewable); then there are no findings and the model is not
+    asked. `notes` explains anything the review skipped, such as diff fragments ESLint can't parse.
+    """
+
+    findings: tuple[ReviewFinding, ...]
+    summary: str
+    judgement_available: bool
+    parse_error: str | None = None
+    kind: Literal["snippet", "diff"] = "snippet"
+    notes: tuple[str, ...] = ()
+
+
+ActivityKind = Literal["question", "review"]
+ActivitySource = Literal["ask", "code_review_screen"]
+
+
+@dataclass(frozen=True, slots=True)
+class ActivityEvent:
+    """One question asked or review run in a project, for the Dashboard's counts and history."""
+
+    project_id: str
+    kind: ActivityKind
+    source: ActivitySource
+    title: str  # the question, or a short label for the reviewed code
+    detail: str  # the start of the answer, or the review summary
+    created_at: datetime
+    finding_count: int | None = None  # reviews from the Code review screen only
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectStats:
+    questions_this_week: int
+    reviews_this_week: int
+    questions_total: int
+    reviews_total: int
+    documents_indexed: int
+    recent: tuple[ActivityEvent, ...]
