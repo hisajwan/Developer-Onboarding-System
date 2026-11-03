@@ -4,14 +4,16 @@ import { useState } from "react";
 import { Button } from "@/components/atoms/Button";
 import { Heading } from "@/components/atoms/Heading";
 import { ChangePasswordForm } from "@/components/molecules/ChangePasswordForm";
+import { DeleteAccountForm } from "@/components/molecules/DeleteAccountForm";
 import { Modal } from "@/components/molecules/Modal";
 import { ProfileForm } from "@/components/molecules/ProfileForm";
 import { PageTemplate } from "@/components/templates/PageTemplate";
 import { useProfile } from "@/hooks/useProfile";
 
 export default function AccountPage() {
-  const { profile, isLoading, error, save, changePassword } = useProfile();
+  const { profile, isLoading, error, save, changePassword, deleteAccount } = useProfile();
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   return (
     <PageTemplate title="Account">
@@ -38,8 +40,32 @@ export default function AccountPage() {
               Change password
             </Button>
           </div>
+          <div className="flex flex-col gap-4 border-t border-border pt-6">
+            <Heading as="h2">Delete account</Heading>
+            <p className="text-xs text-muted">
+              Deletes your account with all its projects, documents and chats.
+            </p>
+            <Button
+              type="button"
+              variant="danger"
+              onClick={() => setIsDeleteModalOpen(true)}
+              className="w-fit"
+            >
+              Delete account
+            </Button>
+          </div>
         </div>
       )}
+      <Modal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        title="Delete account"
+      >
+        <DeleteAccountForm
+          onSubmit={deleteAccount}
+          onCancel={() => setIsDeleteModalOpen(false)}
+        />
+      </Modal>
       <Modal
         isOpen={isPasswordModalOpen}
         onClose={() => setIsPasswordModalOpen(false)}

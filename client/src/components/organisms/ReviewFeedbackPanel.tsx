@@ -32,6 +32,11 @@ export function ReviewFeedbackPanel({ code, review }: ReviewedSnippet) {
           security and style rules; test coverage needs the model).
         </p>
       )}
+      {review.consulted.length > 0 && (
+        <p className="text-xs text-muted">
+          Checked against this project&apos;s documents: {review.consulted.join(", ")}.
+        </p>
+      )}
       {review.notes.length > 0 && (
         <ul className="flex flex-col gap-1 text-xs text-muted">
           {review.notes.map((note) => (

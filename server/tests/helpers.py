@@ -3,11 +3,50 @@
 tests.
 """
 
+from contextlib import closing
 from io import BytesIO
+from pathlib import Path
 
 from PIL import Image
 
 from app.domain.models import Chunk, ChunkRecord, IndexedDocument, RetrievedChunk
+from app.infrastructure.storage.sqlite_schema import connect, ensure_schema
+
+_T = "2026-01-01T00:00:00+00:00"
+
+
+def seed_parents(
+    path: Path,
+    *,
+    users: tuple[str, ...] = (),
+    projects: tuple[str, ...] = (),
+    sessions: tuple[str, ...] = (),
+) -> None:
+    """Inserts bare parent rows so a table adapter can be tested alone under foreign keys.
+
+    Projects belong to user "owner"; sessions belong to project "parent-project". Rows that
+    already exist are left alone.
+    """
+    ensure_schema(path)
+    with closing(connect(path)) as connection, connection:
+        for username in (*users, "owner"):
+            connection.execute(
+                "INSERT OR IGNORE INTO users (username, first_name, last_name, email, "
+                "password_hash, created_at) VALUES (?, 'A', 'B', ?, 'x', ?)",
+                (username, f"{username}@example.com", _T),
+            )
+        for project_id in (*projects, "parent-project"):
+            connection.execute(
+                "INSERT OR IGNORE INTO projects (id, owner_username, name, created_at, updated_at) "
+                "VALUES (?, 'owner', 'P', ?, ?)",
+                (project_id, _T, _T),
+            )
+        for session_id in sessions:
+            connection.execute(
+                "INSERT OR IGNORE INTO chat_sessions (id, project_id, name, created_at) "
+                "VALUES (?, 'parent-project', 'S', ?)",
+                (session_id, _T),
+            )
 
 
 def make_image(width: int = 64, height: int = 64, *, format: str = "PNG") -> bytes:  # noqa: A002
@@ -53,13 +92,29 @@ class InMemoryVectorStore:
         return sorted(scored, key=lambda item: item.score, reverse=True)[:top_k]
 
     async def count_documents(self, project_id: str) -> int:
-        return len(
+        return len(await self.sources(project_id))
+
+    async def sources(self, project_id: str) -> list[str]:
+        return sorted(
             {
                 record.chunk.source
                 for id_, record in self.records.items()
                 if self.projects[id_] == project_id
             }
         )
+
+    async def chunks_for_source(
+        self, project_id: str, source: str, limit: int
+    ) -> list[RetrievedChunk]:
+        chunks = sorted(
+            (
+                record.chunk
+                for id_, record in self.records.items()
+                if self.projects[id_] == project_id and record.chunk.source == source
+            ),
+            key=lambda chunk: chunk.index,
+        )
+        return [RetrievedChunk(chunk, 0.0) for chunk in chunks[:limit]]
 
 
 class InMemoryRegistry:

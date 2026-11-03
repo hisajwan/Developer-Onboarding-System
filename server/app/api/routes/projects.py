@@ -1,6 +1,11 @@
 from fastapi import APIRouter, status
 
-from app.api.deps import OwnedProjectDep, ProjectServiceDep, ProjectSetupServiceDep, SessionDep
+from app.api.deps import (
+    OwnedProjectDep,
+    ProjectLifecycleServiceDep,
+    ProjectServiceDep,
+    SessionDep,
+)
 from app.schemas.projects import (
     CreateProjectRequest,
     ProjectListResponse,
@@ -21,10 +26,17 @@ async def list_projects(username: SessionDep, service: ProjectServiceDep) -> Pro
 async def create_project(
     request: CreateProjectRequest,
     username: SessionDep,
-    setup: ProjectSetupServiceDep,
+    lifecycle: ProjectLifecycleServiceDep,
 ) -> ProjectResponse:
-    project = await setup.create_project(username, request.name)
+    project = await lifecycle.create_project(username, request.name)
     return ProjectResponse.from_domain(project)
+
+
+@router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_project(
+    project: OwnedProjectDep, username: SessionDep, lifecycle: ProjectLifecycleServiceDep
+) -> None:
+    await lifecycle.delete_project(username, project.id)
 
 
 @router.patch("/{project_id}", response_model=ProjectResponse)

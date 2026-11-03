@@ -30,6 +30,19 @@ class FakeUsers:
     async def record(self, user: User) -> None:
         self._users[user.username] = user
 
+    async def delete(self, username: str) -> None:
+        self._users.pop(username, None)
+
+
+class FakeProjects:
+    """Stands in for the project lifecycle service's clean-up before an account goes."""
+
+    def __init__(self) -> None:
+        self.cleared_for: list[str] = []
+
+    async def delete_all_content_for(self, owner_username: str) -> None:
+        self.cleared_for.append(owner_username)
+
 
 @pytest.fixture
 def users() -> FakeUsers:
@@ -37,8 +50,13 @@ def users() -> FakeUsers:
 
 
 @pytest.fixture
-def service(users: FakeUsers) -> UserProfileService:
-    return UserProfileService(users, BcryptPasswordHasher())
+def projects() -> FakeProjects:
+    return FakeProjects()
+
+
+@pytest.fixture
+def service(users: FakeUsers, projects: FakeProjects) -> UserProfileService:
+    return UserProfileService(users, BcryptPasswordHasher(), projects)
 
 
 @pytest.mark.anyio
@@ -97,3 +115,24 @@ async def test_change_password_rejects_the_wrong_current_password(
         await service.change_password("dev", "wrong-password", "new-password-123")
 
     assert verify_password("secret", (await users.get("dev")).password_hash)  # unchanged
+
+
+@pytest.mark.anyio
+async def test_deleting_the_account_clears_its_projects_then_removes_it(
+    service: UserProfileService, users: FakeUsers, projects: FakeProjects
+) -> None:
+    await service.delete_account("dev", "secret")
+
+    assert projects.cleared_for == ["dev"]
+    assert await users.get("dev") is None
+
+
+@pytest.mark.anyio
+async def test_deleting_the_account_needs_the_right_password(
+    service: UserProfileService, users: FakeUsers, projects: FakeProjects
+) -> None:
+    with pytest.raises(InvalidCredentialsError):
+        await service.delete_account("dev", "wrong-password")
+
+    assert projects.cleared_for == []
+    assert await users.get("dev") is not None

@@ -6,6 +6,8 @@ from app.domain.models import ChatSession
 from app.domain.ports import ChatSessionRegistry
 from app.services.project_service import ProjectService
 
+DEFAULT_SESSION_NAME = "Session 1"
+
 
 class ChatSessionService:
     """A project's conversation threads. Ownership is always checked through the project - a
@@ -38,3 +40,11 @@ class ChatSessionService:
         if session is None or session.project_id != project_id:
             raise NotFoundError("Session not found.")
         return session
+
+    async def delete_session(self, owner_username: str, project_id: str, session_id: str) -> None:
+        """Deletes the session and its messages. A project always keeps at least one session (Ask
+        mode needs somewhere to talk), so deleting the last one starts a fresh "Session 1"."""
+        await self.get_owned_session(owner_username, project_id, session_id)
+        await self._sessions.delete(session_id)
+        if not await self._sessions.list_for_project(project_id):
+            await self.create_session(owner_username, project_id, DEFAULT_SESSION_NAME)

@@ -21,15 +21,19 @@ docs/          architecture, database, API, configuration, development
 
 ## Features
 
-- **Accounts**: sign up, log in, edit your name and change your password on the Account page.
+- **Accounts**: sign up, log in, edit your name, change your password, or delete the account (and everything in it)
+  on the Account page.
 - **Projects**: each user has their own projects. A project's documents and answers never mix with another project's.
+  Projects and chat sessions can be deleted, with everything in them.
 - **Project docs**: upload Markdown, text, PDF or image files per project; they are chunked, embedded and indexed
   (images and PDF diagrams are captioned first). Re-uploading an unchanged file is skipped; files can be deleted.
 - **Ask**: chat about the project's docs; answers are formatted (Markdown) and cite only the files they used. Each project can have several chat sessions;
   they share the project's docs but keep separate history. Pasting code into the chat routes it to code review.
 - **Code review**: paste a React / TypeScript / JavaScript snippet, or a unified diff (`git diff` output), and get
   categorised feedback (accessibility, security, test, style) from ESLint plus the model's judgement. A diff is reviewed
-  on its added and changed lines only, with findings tagged by file and new-file line.
+  on its added and changed lines only, with findings tagged by file and new-file line. The code is also checked against
+  the project's own documents (a CONTRIBUTING guide or coding standards): findings that follow one of its rules name
+  the document.
 - **Dashboard**: the current project's questions and reviews this week, documents indexed, and recent activity.
 
 ## Run it
@@ -75,7 +79,7 @@ re-uploaded. Keys stay in `server/.env`, never in `client/`.
 
 Groq can serve the text model instead (`LLM_PROVIDER=groq`, `GROQ_API_KEY`), or act as a backup: with
 `LLM_FALLBACK_PROVIDER=groq`, answers and reviews move to Groq when Gemini's models are rate-limited. Embeddings and
-captions stay on Gemini. OpenRouter is not implemented yet.
+captions stay on Gemini.
 
 ### Evaluation
 
@@ -92,10 +96,10 @@ request/response shapes and error codes are in the [API reference](docs/api.md).
 | Area | Routes |
 |---|---|
 | Auth | `POST /signup`, `POST /login`, `POST /logout`, `GET /session` |
-| Profile | `GET /me`, `PATCH /me`, `POST /me/change-password` |
-| Projects | `GET /projects`, `POST /projects`, `PATCH /projects/{id}`, `POST /projects/{id}/select` |
+| Profile | `GET /me`, `PATCH /me`, `DELETE /me`, `POST /me/change-password` |
+| Projects | `GET /projects`, `POST /projects`, `PATCH /projects/{id}`, `DELETE /projects/{id}`, `POST /projects/{id}/select` |
 | Documents | `GET /projects/{id}/documents`, `POST /projects/{id}/documents`, `DELETE /projects/{id}/documents/{filename}` |
-| Chat sessions | `GET /projects/{id}/sessions`, `POST /projects/{id}/sessions` |
+| Chat sessions | `GET /projects/{id}/sessions`, `POST /projects/{id}/sessions`, `DELETE /projects/{id}/sessions/{session_id}` |
 | Chat | `POST /projects/{id}/sessions/{session_id}/chat`, `GET /projects/{id}/sessions/{session_id}/chat/history` |
 | Code review | `POST /projects/{id}/reviews` |
 | Dashboard | `GET /projects/{id}/stats` |

@@ -6,6 +6,9 @@ import pytest
 from app.domain.models import ChatSession
 from app.domain.ports import ChatSessionRegistry
 from app.infrastructure.storage.sqlite_chat_session_registry import SqliteChatSessionRegistry
+from tests.helpers import seed_parents
+
+PROJECTS = ("proj-1", "proj-2")
 
 NOW = datetime(2026, 9, 22, 12, 0, tzinfo=UTC)
 
@@ -18,6 +21,7 @@ def session(
 
 @pytest.fixture
 def registry(tmp_path: Path) -> SqliteChatSessionRegistry:
+    seed_parents(tmp_path / "db" / "app.db", projects=PROJECTS)
     return SqliteChatSessionRegistry(tmp_path / "db" / "app.db")
 
 
@@ -62,6 +66,7 @@ async def test_list_for_project_with_no_sessions_is_empty(
 @pytest.mark.anyio
 async def test_registry_survives_a_restart(tmp_path: Path) -> None:
     path = tmp_path / "app.db"
+    seed_parents(path, projects=PROJECTS)
     await SqliteChatSessionRegistry(path).create(session())
 
     assert await SqliteChatSessionRegistry(path).get("session-1") == session()

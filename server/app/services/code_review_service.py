@@ -5,12 +5,14 @@ If its reply isn't the JSON asked for, the review falls back to the ESLint findi
 """
 
 import json
+from collections.abc import Sequence
 from dataclasses import replace
 from typing import get_args
 
 from app.domain.models import (
     CodeReview,
     LintMessage,
+    RetrievedChunk,
     ReviewCategory,
     ReviewFinding,
     SnippetLanguage,
@@ -53,11 +55,16 @@ _SYSTEM_PROMPT = "\n".join(
         "return no findings: never invent issues to fill the list.",
         "- The summary is one sentence that reflects the most serious finding, and does not call "
         "a security problem minor.",
+        "- Excerpts from the project's own documents may be given. If one states a rule that "
+        "applies to this code (a naming convention, a required test, a component to use), check "
+        "the code against it, report each violation as a finding with \"reference\" set to that "
+        "file name, and use the category the rule is about (style if unsure). Ignore excerpts "
+        "that state no applicable rule, and never cite a document for general best practice.",
         "",
         "Reply with JSON only, no prose and no code fences, exactly in this shape: "
         '{"summary": "<one sentence>", "findings": [{"category": '
         '"accessibility|security|test|style", "message": "<what and why, one or two sentences>", '
-        '"line": <line number or null>}]}',
+        '"line": <line number or null>, "reference": <project file name or null>}]}',
     ]
 )
 
@@ -78,9 +85,25 @@ class CodeReviewService:
         self._linter = linter
         self._llm = llm
 
-    async def review(self, code: str, language: SnippetLanguage = "tsx") -> CodeReview:
+    async def review(
+        self,
+        code: str,
+        language: SnippetLanguage = "tsx",
+        *,
+        guidance: Sequence[RetrievedChunk] = (),
+    ) -> CodeReview:
+        """`guidance` is excerpts of the project's documents (coding standards, conventions) for
+        the model to check the code against; findings that follow one name it as `reference`."""
+        consulted = tuple(dict.fromkeys(excerpt.chunk.source for excerpt in guidance))
+        review = await self._review(code, language, _guidance_text(guidance))
+        findings = tuple(
+            f if f.reference in consulted else replace(f, reference=None) for f in review.findings
+        )
+        return replace(review, findings=findings, consulted=consulted)
+
+    async def _review(self, code: str, language: SnippetLanguage, guidance: str) -> CodeReview:
         if looks_like_diff(code):
-            return await self._review_diff(code)
+            return await self._review_diff(code, guidance)
         messages = await self._linter.lint(code, f"snippet.{language}")
 
         parse_error = next((m for m in messages if m.rule_id is None), None)
@@ -94,7 +117,8 @@ class CodeReviewService:
             )
 
         lint_findings = tuple(_from_lint(message) for message in messages)
-        reply = await self._llm.generate(_prompt(code, language, messages), system=_SYSTEM_PROMPT)
+        prompt = guidance + _prompt(code, language, messages)
+        reply = await self._llm.generate(prompt, system=_SYSTEM_PROMPT)
         judgement = _parse_judgement(reply)
         if judgement is None:
             return CodeReview(
@@ -110,7 +134,7 @@ class CodeReviewService:
             judgement_available=True,
         )
 
-    async def _review_diff(self, diff: str) -> CodeReview:
+    async def _review_diff(self, diff: str, guidance: str) -> CodeReview:
         """Lint each changed hunk as rebuilt new code, keep findings on added lines only, then ask
         the model to review the diff itself. A hunk that is only a fragment (ESLint can't parse
         it on its own) is left to the model and noted."""
@@ -148,7 +172,7 @@ class CodeReviewService:
         lint_list = "\n".join(
             f"- {f.file}:{f.line}: {f.message} ({f.rule_id})" for f in lint_findings
         ) or "- none"
-        prompt = f"Unified diff:\n{diff}\n\nESLint findings on added lines:\n{lint_list}"
+        prompt = f"{guidance}Unified diff:\n{diff}\n\nESLint findings on added lines:\n{lint_list}"
         judgement = _parse_judgement(
             await self._llm.generate(prompt, system=_DIFF_SYSTEM_PROMPT)
         )
@@ -189,6 +213,14 @@ def _from_lint(message: LintMessage) -> ReviewFinding:
     )
 
 
+def _guidance_text(guidance: Sequence[RetrievedChunk]) -> str:
+    if not guidance:
+        return ""
+    excerpts = "\n\n".join(f"File: {g.chunk.source}\n{g.chunk.text}" for g in guidance)
+    heading = "Project document excerpts (check the code against any rule they state):"
+    return f"{heading}\n\n{excerpts}\n\n"
+
+
 def _prompt(code: str, language: str, messages: list[LintMessage]) -> str:
     if messages:
         lint = "\n".join(f"- line {m.line}: {m.message} ({m.rule_id})" for m in messages)
@@ -216,7 +248,7 @@ def _parse_judgement(reply: str) -> tuple[str, tuple[ReviewFinding, ...]] | None
         category, message = item.get("category"), item.get("message")
         if category not in _CATEGORIES or not isinstance(message, str) or not message.strip():
             continue
-        line, file = item.get("line"), item.get("file")
+        line, file, reference = item.get("line"), item.get("file"), item.get("reference")
         findings.append(
             ReviewFinding(
                 category=category,
@@ -224,7 +256,8 @@ def _parse_judgement(reply: str) -> tuple[str, tuple[ReviewFinding, ...]] | None
                 severity="suggestion",
                 source="model",
                 line=line if isinstance(line, int) and line > 0 else None,
-                file=file.strip() if isinstance(file, str) and file.strip() else None,
+                file=_text_or_none(file),
+                reference=_text_or_none(reference),
             )
         )
 
@@ -232,6 +265,10 @@ def _parse_judgement(reply: str) -> tuple[str, tuple[ReviewFinding, ...]] | None
     if not isinstance(summary, str) or not summary.strip():
         summary = "No issues found." if not findings else f"{len(findings)} suggestion(s)."
     return summary.strip(), tuple(findings)
+
+
+def _text_or_none(value: object) -> str | None:
+    return value.strip() if isinstance(value, str) and value.strip() else None
 
 
 def _lint_only_summary(count: int) -> str:

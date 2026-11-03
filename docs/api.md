@@ -56,6 +56,7 @@ Signup rules: names 1 to 100 characters; `username` 3 to 50 characters of letter
 | `GET /me` | | `200 {username, first_name, last_name, email}` |
 | `PATCH /me` | `{first_name, last_name}` | `200` the updated profile |
 | `POST /me/change-password` | `{current_password, new_password}` | `204`; `401 invalid_credentials` if the current one is wrong |
+| `DELETE /me` | `{password}` | `204`, clears the cookie; deletes the account and all its projects (documents, chunks, files, sessions, messages, activity). `401 invalid_credentials` if the password is wrong |
 
 Username and email cannot be changed. There is no password-reset endpoint; `server/scripts/create_user.py` resets one
 from the command line.
@@ -69,6 +70,7 @@ from the command line.
 | `GET /projects` | | `200 {projects: [Project]}`, the caller's own projects, newest first |
 | `POST /projects` | `{name}` (1 to 200 chars) | `201 Project`; also creates the project's first chat session, "Session 1" (if that fails, the project is removed again and the error is returned) |
 | `PATCH /projects/{id}` | `{name}` | `200 Project` |
+| `DELETE /projects/{id}` | | `204`; deletes the project with its documents (rows, chunks and files), sessions, messages and activity; clears it as anyone's `last_project_id` |
 | `POST /projects/{id}/select` | | `200 Project`; remembered as `last_project_id` for the next login |
 
 ## Documents
@@ -94,6 +96,7 @@ name replaces the old one, embedding only its new chunks.
 |---|---|---|
 | `GET /projects/{id}/sessions` | | `200 {sessions: [ChatSession]}`, oldest first |
 | `POST /projects/{id}/sessions` | `{name?}` (default "New session") | `201 ChatSession` |
+| `DELETE /projects/{id}/sessions/{session_id}` | | `204`; deletes the session and its messages. A project always keeps one session: deleting the last one creates a fresh "Session 1" |
 
 ## Chat
 
@@ -123,6 +126,11 @@ Request:
 diff (a `diff --git` or `---`/`+++` header plus `@@` hunks), it is reviewed as one: each `.js`, `.jsx`, `.ts` or `.tsx`
 file's hunks are linted, only findings on added or changed lines are kept, and other files are skipped with a note.
 
+The code is also checked against the project's own documents: up to four excerpts (files named like guidelines first,
+such as `CONTRIBUTING.md` or a coding-standards file, then the chunks closest to the code) go to the model, which
+reports a violation of a rule they state with that file as `reference`. The files given are listed in `consulted`.
+A project with no documents skips this step.
+
 Response `200`:
 
 ```json
@@ -135,14 +143,16 @@ Response `200`:
       "source": "eslint",
       "line": 2,
       "rule_id": "jsx-a11y/alt-text",
-      "file": null
+      "file": null,
+      "reference": null
     }
   ],
   "summary": "ESLint found 1 issue(s). The model's review was not available.",
   "judgement_available": false,
   "parse_error": null,
   "kind": "snippet",
-  "notes": []
+  "notes": [],
+  "consulted": ["CONTRIBUTING.md"]
 }
 ```
 
@@ -157,6 +167,8 @@ Response `200`:
 | `kind` | `snippet` or `diff` |
 | `file` | The changed file a finding is in (diffs only); `line` is then the line in the new version of that file |
 | `notes` | What a diff review skipped, e.g. non-JS files, or a hunk ESLint couldn't parse on its own (left to the model) |
+| `reference` | The project document whose rule a model finding follows; only a file listed in `consulted` can appear |
+| `consulted` | The project documents the code was checked against (empty for a project with no documents) |
 
 The review itself is not stored; one activity row (title, summary, finding count) is recorded for the dashboard.
 

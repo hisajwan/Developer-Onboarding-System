@@ -11,19 +11,21 @@ from app.services.activity_service import review_event
 class ProjectReviewService:
     def __init__(
         self,
-        reviewer: CodeReviewer,
+        reviewer_for: Callable[[str], CodeReviewer],
         activity: ActivityLog,
         *,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
-        self._reviewer = reviewer
+        """`reviewer_for(project_id)` gives the reviewer for that project (it checks the code
+        against the project's own documents)."""
+        self._reviewer_for = reviewer_for
         self._activity = activity
         self._clock = clock
 
     async def review(
         self, project_id: str, code: str, language: SnippetLanguage = "tsx"
     ) -> CodeReview:
-        review = await self._reviewer.review(code, language)
+        review = await self._reviewer_for(project_id).review(code, language)
         await self._activity.record(
             review_event(
                 project_id, code, review.summary, self._clock(),

@@ -16,6 +16,10 @@ class UserRegistry(Protocol):
         """
         ...
 
+    async def delete(self, username: str) -> None:
+        """Removes the account and, with it, everything the account owns."""
+        ...
+
     async def record(self, user: User) -> None:
         """Insert, or replace the entry with the same username - the seed script's password
 

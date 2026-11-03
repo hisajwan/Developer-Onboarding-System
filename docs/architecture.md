@@ -95,7 +95,10 @@ flowchart LR
 - Idempotent: chunk ids are a hash of embedding model + input format + project + source + position + kind + text, so
   re-uploading the same file costs no embedding calls, and a changed file only embeds its changed chunks. Stale chunks
   are removed.
-- Deleting a document removes it from the registry, Chroma and disk together.
+- Deleting a document removes it from the registry, Chroma and disk together. Deleting a project
+  (`ProjectLifecycleService`) removes its chunks and its folder of files, then the project row, and SQLite's foreign
+  keys remove its sessions, messages, document rows and activity. Deleting an account does the same for every project
+  it owns. Deleting a chat session removes its messages; a project's last session is replaced by a fresh "Session 1".
 
 ### Ask (chat)
 
@@ -108,6 +111,10 @@ flowchart LR
    model ends with a `SOURCES:` line naming the files it used; the tool strips it and cites only those (none when the
    documents don't cover the question; all retrieved files if the model omits the line). If the project has nothing
    indexed it says so without calling the LLM. (There is no relevance threshold: the top 4 chunks are always used.)
+   Search matches meaning, so a file whose *name* answers the question ("Competitor Aegis …" for "Who is the
+   competitor?") could rank below unrelated text: files whose names share a word with the question are added to the
+   excerpts if search missed them, the model is given the list of the project's file names, and it is told that a file
+   name counts as evidence.
 4. The user message and the reply are saved to the session, and one activity row is recorded for the dashboard (a
    question, or a review if `review_code` answered).
 
@@ -125,6 +132,13 @@ flowchart LR
    `console.log` of a password).
 4. If the model's reply is not valid review JSON, the result falls back to the ESLint findings and says so
    (`judgement_available: false`). A snippet that doesn't parse is reported and the model is not called.
+5. **The project's own rules** (`app/services/review_guidance.py`):
+   - Before the model is called, up to four excerpts of the project's documents are added to its prompt. Files named
+     like guidelines (CONTRIBUTING, standards, conventions, style guide) come first, then the chunks closest to the
+     code (one embedding call).
+   - The model reports a violation of a rule an excerpt states, with that file as the finding's `reference`, and
+     ignores excerpts that state no applicable rule. A cited file that wasn't given is dropped.
+   - The review lists the files it was checked against (`consulted`). A project with no documents skips this step.
 
 A pasted **unified diff** (`git diff` output) is detected and reviewed as one (`app/review/diff.py`): for each changed
 `.js`/`.jsx`/`.ts`/`.tsx` file, each hunk's new-side code is linted, only findings on added or changed lines are kept
@@ -132,7 +146,8 @@ and mapped to the file and its new line number, and the model is asked to commen
 are skipped with a note; a hunk ESLint can't parse on its own (a fragment) is left to the model, also with a note.
 
 The Code review screen calls `POST /projects/{id}/reviews` directly (through `ProjectReviewService`, which also records
-an activity row); code pasted into Ask reaches the same reviewer through the agent's `review_code` tool.
+an activity row); code pasted into Ask reaches the same reviewer through the agent's `review_code` tool. Both use the
+project's `ProjectCodeReviewer`, so both check the code against that project's documents.
 
 ### Dashboard
 
@@ -156,6 +171,11 @@ Shared state is held by providers in the `(app)` layout, nested
 `ProjectProvider > ProjectDocumentsProvider > ChatSessionProvider > ChatProvider`: the current project, its documents,
 its chat sessions and the current conversation. All HTTP goes through `src/lib/api/http.ts`.
 
+"+ New session" opens a **draft**: an empty conversation that exists only in the browser. The session is created on
+the server when its first question is sent, so empty sessions never pile up; switching away discards the draft.
+Projects and sessions are deleted from the gear button beside each dropdown: a list with checkboxes, then a
+confirmation naming exactly what will go.
+
 What is restored after a reload: the current project comes from the server (`last_project_id`); the chat session last
 open in each project is remembered in the browser's localStorage (`last-chat-session:<project id>`), falling back to
 the first session if it no longer exists or storage is unavailable; panel collapse states are also localStorage.
@@ -166,8 +186,8 @@ the first session if it no longer exists or storage is unavailable; panel collap
 |---|---|---|---|
 | `Embedder` | Chunk and query embeddings | Hashes words into 256-d vectors (shared words = similar) | **Gemini** (`GEMINI_EMBEDDING_MODEL`, default `gemini-embedding-001`) |
 | `ImageCaptioner` | Captions for images at ingestion | Describes the image by type, size and hash | **Gemini** vision (`GEMINI_MODEL`) |
-| `LLMClient` | Answers, review judgement | Echoes the prompt | **Gemini** (`GEMINI_MODEL`), **Groq** (`GROQ_MODEL`); OpenRouter: stub, not implemented |
-| Chat model (LangChain) | The agent's tool choice | Code-looking input to `review_code`, else the first tool | **Gemini** (`GEMINI_MODEL`), **Groq** (`GROQ_MODEL`); OpenRouter: stub, not implemented |
+| `LLMClient` | Answers, review judgement | Echoes the prompt | **Gemini** (`GEMINI_MODEL`), **Groq** (`GROQ_MODEL`) |
+| Chat model (LangChain) | The agent's tool choice | Code-looking input to `review_code`, else the first tool | **Gemini** (`GEMINI_MODEL`), **Groq** (`GROQ_MODEL`) |
 
 `fake` is the default: no API keys, no network. With `gemini`, all Gemini adapters share one chat model setup
 (`app/infrastructure/gemini/`):
@@ -191,13 +211,15 @@ ESLint is real in every mode: it runs locally and needs no API key.
 
 ## Known limitations
 
-- **OpenRouter is not implemented**. Groq serves text only; Gemini is the only embedding and caption provider.
+- **Groq serves text only**; Gemini is the only embedding and caption provider.
 - **Dashboard** covers the current project only, and counts start from when activity recording was added.
 - **Retrieval** always uses the top 4 chunks, with no relevance threshold; unrelated questions still reach the model,
   which is told to say it doesn't know.
 - **Chat memory** covers the latest 50 messages of a session.
 - **Reviews** are not stored; the Code review screen keeps only the latest result, in the browser.
-- **No deletion** of projects, chat sessions or accounts, and **no renaming** of sessions, through the API.
+- **No renaming** of chat sessions.
+- **Code review** covers JavaScript and TypeScript only (by scope). Checking against the project's documents relies
+  on the team having written its rules down, and on the model applying them.
 - **No login rate limiting**, and no password reset in the app (operator script only).
 - **Creating a project** writes the project and its first session separately, not in one transaction; a failed
   session write deletes the project again rather than leaving it without a session.

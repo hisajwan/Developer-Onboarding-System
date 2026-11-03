@@ -49,7 +49,10 @@ def seed_user(settings: Settings, username: str = USERNAME, password: str = PASS
 def seed_project(
     settings: Settings, owner_username: str = USERNAME, name: str = PROJECT_NAME
 ) -> Project:
-    """Puts a project straight into the settings' own projects table, bypassing HTTP."""
+    """Puts a project straight into the settings' own projects table, bypassing HTTP. Creates the
+    owner's account first if it doesn't exist (the projects table requires one)."""
+    if asyncio.run(SqliteUserRegistry(settings.database_path).get(owner_username)) is None:
+        seed_user(settings, username=owner_username)
     now = datetime.now(UTC)
     project = Project(
         id=str(uuid4()), owner_username=owner_username, name=name, created_at=now, updated_at=now

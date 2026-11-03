@@ -1,18 +1,26 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getChatHistory, sendChatMessage } from "@/lib/api/chat";
 import type { ChatMessage } from "@/types/chat";
 
 /**
- * Either id `null` while no project/session is selected yet - chat stays empty and sending is a
- * no-op until both exist.
+ * `sessionId` is `null` while a draft is open: the chat starts empty, and the first message sent
+ * creates the session (through `ensureSession`) before it is sent. With no project, sending is a
+ * no-op.
  */
-export function useChat(projectId: string | null, sessionId: string | null) {
+export function useChat(
+  projectId: string | null,
+  sessionId: string | null,
+  ensureSession: (beforeSwitch: (sessionId: string) => void) => Promise<string>,
+) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A session just created from a draft: its history is the message being sent right now, so
+  // reloading it would only wipe that message off the screen.
+  const createdFromDraftRef = useRef<string | null>(null);
 
   // Reloads the saved conversation whenever the selected session changes, including on the first
   // mount after a page reload - this is what makes the chat survive a refresh, not just a nav.
@@ -20,6 +28,10 @@ export function useChat(projectId: string | null, sessionId: string | null) {
     let cancelled = false;
 
     async function loadHistory() {
+      if (sessionId && sessionId === createdFromDraftRef.current) {
+        createdFromDraftRef.current = null;
+        return;
+      }
       if (!projectId || !sessionId) {
         setMessages([]);
         return;
@@ -51,7 +63,7 @@ export function useChat(projectId: string | null, sessionId: string | null) {
 
   const send = useCallback(
     async (text: string) => {
-      if (!projectId || !sessionId) return;
+      if (!projectId) return;
       setError(null);
       setMessages((current) => [
         ...current,
@@ -59,7 +71,12 @@ export function useChat(projectId: string | null, sessionId: string | null) {
       ]);
       setIsSending(true);
       try {
-        const response = await sendChatMessage(projectId, sessionId, text);
+        const targetId =
+          sessionId ??
+          (await ensureSession((createdId) => {
+            createdFromDraftRef.current = createdId;
+          }));
+        const response = await sendChatMessage(projectId, targetId, text);
         setMessages((current) => [
           ...current,
           {
@@ -75,7 +92,7 @@ export function useChat(projectId: string | null, sessionId: string | null) {
         setIsSending(false);
       }
     },
-    [projectId, sessionId],
+    [projectId, sessionId, ensureSession],
   );
 
   return { messages, isLoadingHistory, isSending, error, send };

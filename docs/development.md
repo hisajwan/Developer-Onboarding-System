@@ -8,11 +8,12 @@ Related: [architecture](architecture.md), [configuration](configuration.md).
 server/
   app/
     api/             routes/, deps.py (auth + ownership dependencies), container.py (picks concrete adapters)
-    services/        business flows: auth, profile, projects (+ setup with "Session 1"), chat sessions, chat,
-                     ingestion, code review, activity/stats, evaluation
+    services/        business flows: auth, profile, projects (+ lifecycle: create with "Session 1", delete with
+                     everything in it), chat sessions, chat, ingestion, code review (+ project-docs guidance),
+                     activity/stats, evaluation
     agent/           LangChain agent and its tools (tools/)
     domain/          models.py (dataclasses) and ports/ (Protocol interfaces)
-    infrastructure/  adapters: storage/ (SQLite, disk), vectorstore/ (Chroma), embeddings/, llm/, chat_models/,
+    infrastructure/  adapters: storage/ (SQLite, with the one schema in sqlite_schema.py; disk), vectorstore/ (Chroma), embeddings/, llm/, chat_models/,
                      gemini/ and groq/ (shared chat model + error mapping), captioning/, documents/ (file readers),
                      linting/ (ESLint helper), auth/ (JWT, bcrypt), model_calls.py (call counter)
     ingestion/       chunker, chunk ids, filename rules

@@ -15,9 +15,9 @@ from app.services.auth_service import AuthService
 from app.services.chat_service import ChatService
 from app.services.chat_session_service import ChatSessionService
 from app.services.ingestion_service import IngestionService
+from app.services.project_lifecycle_service import ProjectLifecycleService
 from app.services.project_review_service import ProjectReviewService
 from app.services.project_service import ProjectService
-from app.services.project_setup_service import ProjectSetupService
 from app.services.user_profile_service import UserProfileService
 
 
@@ -74,11 +74,13 @@ def get_project_service(container: ContainerDep) -> ProjectService:
 ProjectServiceDep = Annotated[ProjectService, Depends(get_project_service)]
 
 
-def get_project_setup_service(container: ContainerDep) -> ProjectSetupService:
-    return container.project_setup_service
+def get_project_lifecycle_service(container: ContainerDep) -> ProjectLifecycleService:
+    return container.project_lifecycle_service
 
 
-ProjectSetupServiceDep = Annotated[ProjectSetupService, Depends(get_project_setup_service)]
+ProjectLifecycleServiceDep = Annotated[
+    ProjectLifecycleService, Depends(get_project_lifecycle_service)
+]
 
 
 async def require_owned_project(

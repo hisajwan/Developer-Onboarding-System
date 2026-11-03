@@ -8,7 +8,7 @@ from app.domain.ports import ActivityLog
 from app.infrastructure.storage.sqlite_activity_log import SqliteActivityLog
 from app.services.activity_service import ActivityService, question_event, review_event
 from app.services.project_review_service import ProjectReviewService
-from tests.helpers import InMemoryRegistry
+from tests.helpers import InMemoryRegistry, seed_parents
 
 NOW = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
 
@@ -21,6 +21,7 @@ def event(kind: str, when: datetime, project_id: str = "p1", title: str = "t") -
 
 @pytest.fixture
 def log(tmp_path: Path) -> SqliteActivityLog:
+    seed_parents(tmp_path / "app.db", projects=("p1", "other"))
     return SqliteActivityLog(tmp_path / "app.db")
 
 
@@ -123,9 +124,17 @@ class FixedReviewer:
 
 @pytest.mark.anyio
 async def test_a_screen_review_is_returned_and_recorded(log: SqliteActivityLog) -> None:
-    service = ProjectReviewService(FixedReviewer(), log, clock=lambda: NOW)
+    asked_for: list[str] = []
+
+    def reviewer_for(project_id: str) -> FixedReviewer:
+        asked_for.append(project_id)
+        return FixedReviewer()
+
+    service = ProjectReviewService(reviewer_for, log, clock=lambda: NOW)
 
     review = await service.review("p1", "export const A = () => null;")
+
+    assert asked_for == ["p1"]  # the project's own reviewer, which reads its documents
 
     assert review.summary == "Looks good."
     [saved] = await log.recent("p1")

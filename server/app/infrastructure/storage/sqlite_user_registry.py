@@ -8,31 +8,18 @@ from pathlib import Path
 
 from app.core.exceptions import AccountAlreadyExistsError
 from app.domain.models import User
-
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS users (
-    username        TEXT PRIMARY KEY,
-    first_name      TEXT NOT NULL,
-    last_name       TEXT NOT NULL,
-    email           TEXT NOT NULL UNIQUE,
-    password_hash   TEXT NOT NULL,
-    created_at      TEXT NOT NULL,
-    last_project_id TEXT
-)
-"""
+from app.infrastructure.storage.sqlite_schema import connect, ensure_schema
 
 _COLUMNS = "username, first_name, last_name, email, password_hash, created_at, last_project_id"
 
 
 class SqliteUserRegistry:
     def __init__(self, path: Path) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
         self._path = path
-        with closing(self._connect()) as connection, connection:
-            connection.execute(_SCHEMA)
+        ensure_schema(path)
 
     def _connect(self) -> sqlite3.Connection:
-        return sqlite3.connect(self._path)
+        return connect(self._path)
 
     async def get(self, username: str) -> User | None:
         return await asyncio.to_thread(self._get, username)
@@ -42,6 +29,13 @@ class SqliteUserRegistry:
 
     async def record(self, user: User) -> None:
         await asyncio.to_thread(self._record, user)
+
+    async def delete(self, username: str) -> None:
+        await asyncio.to_thread(self._delete, username)
+
+    def _delete(self, username: str) -> None:
+        with closing(self._connect()) as connection, connection:
+            connection.execute("DELETE FROM users WHERE username = ?", (username,))
 
     def _get(self, username: str) -> User | None:
         with closing(self._connect()) as connection:

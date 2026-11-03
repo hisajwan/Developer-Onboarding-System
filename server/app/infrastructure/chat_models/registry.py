@@ -13,14 +13,12 @@ from app.core.exceptions import ModelRateLimitedError
 from app.infrastructure.chat_models.fake import FakeToolCallingChatModel
 from app.infrastructure.chat_models.gemini import create_gemini_chat_model
 from app.infrastructure.chat_models.groq import create_groq_chat_model
-from app.infrastructure.chat_models.openrouter import OpenRouterToolCallingChatModel
 from app.infrastructure.provider_registry import build_provider
 
 _PROVIDERS: dict[str, Callable[[Settings], Runnable]] = {
     "fake": FakeToolCallingChatModel.from_settings,
     "gemini": create_gemini_chat_model,
     "groq": create_groq_chat_model,
-    "openrouter": OpenRouterToolCallingChatModel.from_settings,
 }
 
 

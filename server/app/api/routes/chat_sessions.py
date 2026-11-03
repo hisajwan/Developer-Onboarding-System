@@ -27,3 +27,11 @@ async def create_session(
 ) -> ChatSessionResponse:
     session = await service.create_session(username, project.id, request.name)
     return ChatSessionResponse.from_domain(session)
+
+
+@router.delete("/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_session(
+    session_id: str, project: OwnedProjectDep, username: SessionDep, service: ChatSessionServiceDep
+) -> None:
+    """Deleting the project's last session leaves a fresh "Session 1" in its place."""
+    await service.delete_session(username, project.id, session_id)

@@ -101,8 +101,29 @@ class ChromaVectorStore:
             )
         ]
 
+    async def delete_project(self, project_id: str) -> None:
+        await asyncio.to_thread(self._collection.delete, where={"project_id": project_id})
+
     async def count_documents(self, project_id: str) -> int:
+        return len(await self.sources(project_id))
+
+    async def sources(self, project_id: str) -> list[str]:
         stored = await asyncio.to_thread(
             self._collection.get, where={"project_id": project_id}, include=["metadatas"]
         )
-        return len({metadata["source"] for metadata in stored["metadatas"]})
+        return sorted({metadata["source"] for metadata in stored["metadatas"]})
+
+    async def chunks_for_source(
+        self, project_id: str, source: str, limit: int
+    ) -> list[RetrievedChunk]:
+        stored = await asyncio.to_thread(
+            self._collection.get,
+            where={"$and": [{"project_id": project_id}, {"source": source}]},
+            include=["documents", "metadatas"],
+        )
+        chunks = [
+            _from_metadata(text, metadata)
+            for text, metadata in zip(stored["documents"], stored["metadatas"], strict=True)
+        ]
+        chunks.sort(key=lambda chunk: chunk.index)
+        return [RetrievedChunk(chunk=chunk, score=0.0) for chunk in chunks[:limit]]
