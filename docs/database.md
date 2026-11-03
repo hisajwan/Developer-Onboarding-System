@@ -8,9 +8,17 @@ The server keeps three kinds of data, all under `DATA_DIR` (default `server/data
 | Chroma (persistent) | `data/chroma/` | Document chunks: text, embedding and metadata |
 | Disk | `data/docs/<project_id>/<filename>` | The original uploaded files |
 
-Each SQLite table belongs to one adapter in `server/app/infrastructure/storage/`, which creates it on first use
-(`CREATE TABLE IF NOT EXISTS`). There is no migration tool; schema changes are additive or handled by hand.
-Timestamps are ISO 8601 strings in UTC. IDs are UUID4 strings.
+The whole SQLite schema lives in one module, `server/app/infrastructure/storage/sqlite_schema.py`, which every table
+adapter calls on start-up. It creates the tables parent-first, with foreign keys, and records the schema version in
+`PRAGMA user_version` (currently 1). Every connection turns `PRAGMA foreign_keys` on, since SQLite leaves them off
+by default. Timestamps are ISO 8601 strings in UTC. IDs are UUID4 strings.
+
+**Migration:** a database created before foreign keys existed (version 0) is upgraded automatically, once:
+1. The file is copied to `onboarding.db.before-foreign-keys.bak`.
+2. Each table is rebuilt with its keys in one transaction, dropping any row whose parent no longer exists.
+3. The version is set to 1.
+
+There is no general migration tool.
 
 Related: [architecture](architecture.md), [API reference](api.md).
 
@@ -85,8 +93,23 @@ erDiagram
     }
 ```
 
-The relationships are enforced by the services, not by SQL foreign keys: ownership is checked in `ProjectService` and
-`ChatSessionService` before any project or session data is read or written.
+The relationships are enforced twice:
+- **By SQL foreign keys:** a row can't point at a missing parent, and deleting a parent deletes its children
+  (`ON DELETE CASCADE`).
+- **By the services:** ownership is checked in `ProjectService` and `ChatSessionService` before any project or session
+  data is read or written.
+
+| Child column | Parent | On delete of the parent |
+|---|---|---|
+| `projects.owner_username` | `users.username` | cascade |
+| `chat_sessions.project_id` | `projects.id` | cascade |
+| `chat_messages.session_id` | `chat_sessions.id` | cascade |
+| `documents.project_id` | `projects.id` | cascade |
+| `activity.project_id` | `projects.id` | cascade |
+| `users.last_project_id` | `projects.id` | set to `NULL` |
+
+Chroma chunks and files on disk are outside SQLite, so the services remove those explicitly before deleting a project
+or an account.
 
 ## SQLite tables
 
@@ -181,7 +204,8 @@ needs its own; switching models starts with an empty index for that model.
 |---|---|---|
 | Upload a document | Chroma, disk, `documents` | Embed and upsert new chunks, remove stale ones, save the file, record the row last |
 | Delete a document | `documents`, Chroma, disk | Registry row first (404 if the file isn't indexed), then its chunks, then the file |
-| Create a project | `projects`, `chat_sessions` | Project first, then its "Session 1"; if the session write fails, the project row is deleted again (`ProjectSetupService`) |
+| Create a project | `projects`, `chat_sessions` | Project first, then its "Session 1"; if the session write fails, the project row is deleted again (`ProjectLifecycleService`) |
 | Chat turn | `chat_messages`, `activity` | Both messages, then one activity row |
-
-Projects, sessions and users cannot be deleted through the API yet.
+| Delete a session | `chat_sessions` (+ cascade) | The session row (messages cascade); if it was the last, a new "Session 1" is created |
+| Delete a project | Chroma, disk, `projects` (+ cascade) | Its chunks, then its folder of files, then the project row (sessions, messages, documents and activity cascade; `last_project_id` is cleared). If the clean-up fails, the project is still there to retry |
+| Delete an account | Chroma, disk, `users` (+ cascade) | Every project's chunks and files, then the user row (projects and everything under them cascade) |

@@ -7,32 +7,18 @@ from datetime import datetime
 from pathlib import Path
 
 from app.domain.models import ChatSession
-
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS chat_sessions (
-    id         TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL,
-    name       TEXT NOT NULL,
-    created_at TEXT NOT NULL
-)
-"""
-_INDEX = (
-    "CREATE INDEX IF NOT EXISTS idx_chat_sessions_project ON chat_sessions(project_id, created_at)"
-)
+from app.infrastructure.storage.sqlite_schema import connect, ensure_schema
 
 _COLUMNS = "id, project_id, name, created_at"
 
 
 class SqliteChatSessionRegistry:
     def __init__(self, path: Path) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
         self._path = path
-        with closing(self._connect()) as connection, connection:
-            connection.execute(_SCHEMA)
-            connection.execute(_INDEX)
+        ensure_schema(path)
 
     def _connect(self) -> sqlite3.Connection:
-        return sqlite3.connect(self._path)
+        return connect(self._path)
 
     async def get(self, session_id: str) -> ChatSession | None:
         return await asyncio.to_thread(self._get, session_id)
@@ -42,6 +28,13 @@ class SqliteChatSessionRegistry:
 
     async def create(self, session: ChatSession) -> None:
         await asyncio.to_thread(self._create, session)
+
+    async def delete(self, session_id: str) -> None:
+        await asyncio.to_thread(self._delete, session_id)
+
+    def _delete(self, session_id: str) -> None:
+        with closing(self._connect()) as connection, connection:
+            connection.execute("DELETE FROM chat_sessions WHERE id = ?", (session_id,))
 
     def _get(self, session_id: str) -> ChatSession | None:
         with closing(self._connect()) as connection:

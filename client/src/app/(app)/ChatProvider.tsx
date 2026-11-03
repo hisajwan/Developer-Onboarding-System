@@ -17,8 +17,8 @@ const ChatContext = createContext<ChatContextValue | null>(null);
  */
 export function ChatProvider({ children }: { children: ReactNode }) {
   const { currentProjectId } = useProjectContext();
-  const { currentSessionId } = useChatSessionContext();
-  const chat = useChat(currentProjectId, currentSessionId);
+  const { currentSessionId, ensureSession } = useChatSessionContext();
+  const chat = useChat(currentProjectId, currentSessionId, ensureSession);
   return <ChatContext.Provider value={chat}>{children}</ChatContext.Provider>;
 }
 

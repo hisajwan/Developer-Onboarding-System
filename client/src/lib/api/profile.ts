@@ -12,6 +12,15 @@ export function updateProfile(firstName: string, lastName: string): Promise<Prof
   });
 }
 
+export function deleteAccount(password: string): Promise<void> {
+  return apiFetch<void>("/me", {
+    method: "DELETE",
+    body: JSON.stringify({ password }),
+    // A wrong password answers 401 too; show it in the form instead of redirecting (see below).
+    redirectOnUnauthorized: false,
+  });
+}
+
 export function changePassword(currentPassword: string, newPassword: string): Promise<void> {
   return apiFetch<void>("/me/change-password", {
     method: "POST",

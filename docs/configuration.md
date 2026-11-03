@@ -14,10 +14,10 @@ default below. Copy `server/.env.example` to start, and restart the server after
 | `ENVIRONMENT` | `development` | `development`, `test` or `production`; in `production` the cookie is `Secure` (HTTPS only) |
 | `CORS_ORIGINS` | `["http://localhost:3000"]` | JSON list of allowed browser origins (the proxy makes this rarely matter) |
 | `DATA_DIR` | `data` | Root for `onboarding.db`, `chroma/` and `docs/`, relative to where the server is started |
-| `LLM_PROVIDER` | `fake` | `fake`, `gemini`, `groq` or `openrouter`: answers, review judgement, and the agent's tool choice |
+| `LLM_PROVIDER` | `fake` | `fake`, `gemini` or `groq`: answers, review judgement, and the agent's tool choice |
 | `EMBEDDING_PROVIDER` | `fake` | `fake` or `gemini` |
 | `CAPTION_PROVIDER` | `fake` | `fake` or `gemini` (image captions at ingestion) |
-| `GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY` | empty | Needed only by the matching provider; a blank value counts as missing |
+| `GEMINI_API_KEY`, `GROQ_API_KEY` | empty | Needed only by the matching provider; a blank value counts as missing |
 | `GEMINI_MODEL` | `gemini-3.5-flash-lite` | Text model for answers, review judgement, the agent's tool choice and image captions. Must support function calling and image input |
 | `GEMINI_FALLBACK_MODEL` | `gemini-3.1-flash-lite` | Tried once when the main model is rate-limited (its own free quota). Empty disables it |
 | `GEMINI_EMBEDDING_MODEL` | `gemini-embedding-001` | Embedding model. Changing it starts a new, empty index (re-upload documents) |
@@ -36,8 +36,8 @@ default below. Copy `server/.env.example` to start, and restart the server after
 | `NODE_BINARY` | `node` | Node.js executable used to run the helper |
 | `LINT_TIMEOUT_SECONDS` | `20` | Longest a single lint may take before `502 linter_failed` |
 
-`gemini` is implemented for all three provider settings and `groq` for `LLM_PROVIDER` / `LLM_FALLBACK_PROVIDER`;
-`openrouter` is not yet (see [architecture](architecture.md#model-providers-current-status)). Groq's free limits are at
+`gemini` is implemented for all three provider settings and `groq` for `LLM_PROVIDER` / `LLM_FALLBACK_PROVIDER` (see
+[architecture](architecture.md#model-providers-current-status)). Groq's free limits are at
 https://console.groq.com/docs/rate-limits. Check which models your key can use, and their free
 limits, at https://aistudio.google.com/rate-limit; model IDs change over time, so set them here rather than in code.
 Free-tier Gemini inputs may be used by Google to improve its products, so upload only non-confidential documents.

@@ -8,14 +8,12 @@ from app.infrastructure.llm.fake import FakeLLMClient
 from app.infrastructure.llm.fallback import FallbackLLMClient
 from app.infrastructure.llm.gemini import GeminiLLMClient
 from app.infrastructure.llm.groq import GroqLLMClient
-from app.infrastructure.llm.openrouter import OpenRouterLLMClient
 from app.infrastructure.provider_registry import build_provider
 
 _PROVIDERS: dict[str, Callable[[Settings], LLMClient]] = {
     "fake": FakeLLMClient.from_settings,
     "gemini": GeminiLLMClient.from_settings,
     "groq": GroqLLMClient.from_settings,
-    "openrouter": OpenRouterLLMClient.from_settings,
 }
 
 

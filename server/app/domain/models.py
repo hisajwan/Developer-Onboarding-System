@@ -154,6 +154,8 @@ class ReviewFinding:
     line: int | None = None
     rule_id: str | None = None
     file: str | None = None  # set when a diff was reviewed
+    # The project document whose rule this finding follows (model findings only).
+    reference: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -172,6 +174,8 @@ class CodeReview:
     parse_error: str | None = None
     kind: Literal["snippet", "diff"] = "snippet"
     notes: tuple[str, ...] = ()
+    # Project documents the model was given to check the code against.
+    consulted: tuple[str, ...] = ()
 
 
 ActivityKind = Literal["question", "review"]

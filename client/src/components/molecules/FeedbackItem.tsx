@@ -9,12 +9,21 @@ const CATEGORY_TONE: Record<ReviewCategory, BadgeTone> = {
   style: "primary",
 };
 
-export function FeedbackItem({ category, message, line, rule_id, source, file }: ReviewFinding) {
+export function FeedbackItem({
+  category,
+  message,
+  line,
+  rule_id,
+  source,
+  file,
+  reference,
+}: ReviewFinding) {
   const details = [
     file,
     line !== null && `Line ${line}`,
     rule_id,
     source === "eslint" ? "ESLint" : "Model suggestion",
+    reference && `Per ${reference}`,
   ].filter(Boolean);
 
   return (

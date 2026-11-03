@@ -25,6 +25,7 @@ class ReviewFindingResponse(BaseModel):
     line: int | None
     rule_id: str | None
     file: str | None
+    reference: str | None
 
     @classmethod
     def from_domain(cls, finding: ReviewFinding) -> "ReviewFindingResponse":
@@ -36,6 +37,7 @@ class ReviewFindingResponse(BaseModel):
             line=finding.line,
             rule_id=finding.rule_id,
             file=finding.file,
+            reference=finding.reference,
         )
 
 
@@ -46,6 +48,7 @@ class ReviewResponse(BaseModel):
     parse_error: str | None
     kind: Literal["snippet", "diff"]
     notes: list[str]
+    consulted: list[str]
 
     @classmethod
     def from_domain(cls, review: CodeReview) -> "ReviewResponse":
@@ -56,4 +59,5 @@ class ReviewResponse(BaseModel):
             parse_error=review.parse_error,
             kind=review.kind,
             notes=list(review.notes),
+            consulted=list(review.consulted),
         )

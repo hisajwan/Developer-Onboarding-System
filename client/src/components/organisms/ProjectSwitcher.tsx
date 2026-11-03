@@ -1,17 +1,28 @@
 "use client";
 
+import { useState } from "react";
 import { useProjectContext } from "@/app/(app)/ProjectProvider";
 import { Select } from "@/components/atoms/Select";
+import { SettingsButton } from "@/components/atoms/SettingsButton";
+import { BulkDeleteModal } from "@/components/molecules/BulkDeleteModal";
 
 /**
- * Lets a user switch between their own projects, or open the create-project screen for a new one
- * - that screen (see CreateProjectScreen) is the one and only way to create a project, so its
- * name+document requirement can't be bypassed through a simpler path here. Sits on the header's
- * left edge.
+ * Lets a user switch between their own projects, manage (delete) them from the gear, or open the
+ * create-project screen for a new one - that screen (see CreateProjectScreen) is the one and only
+ * way to create a project, so its name+document requirement can't be bypassed through a simpler
+ * path here. Sits on the header's left edge.
  */
 export function ProjectSwitcher() {
-  const { projects, currentProjectId, selectProject, openCreateScreen, isLoading, error } =
-    useProjectContext();
+  const {
+    projects,
+    currentProjectId,
+    selectProject,
+    deleteProjects,
+    openCreateScreen,
+    isLoading,
+    error,
+  } = useProjectContext();
+  const [isManageOpen, setIsManageOpen] = useState(false);
 
   if (isLoading) {
     return <p className="text-xs text-muted">Loading projects…</p>;
@@ -21,6 +32,7 @@ export function ProjectSwitcher() {
 
   return (
     <div className="flex items-center gap-2">
+      <SettingsButton label="Manage projects" onClick={() => setIsManageOpen(true)} />
       <Select
         size="md"
         value={currentProjectId ?? ""}
@@ -46,6 +58,19 @@ export function ProjectSwitcher() {
         + New project
       </button>
       {error && <span className="text-xs text-danger">{error}</span>}
+      <BulkDeleteModal
+        isOpen={isManageOpen}
+        onClose={() => setIsManageOpen(false)}
+        title="Manage projects"
+        noun={["project", "projects"]}
+        items={projects.map((project) => ({
+          id: project.id,
+          label: project.name,
+          detail: project.id === currentProjectId ? "open now" : undefined,
+        }))}
+        consequence="Their documents, chat sessions and dashboard history are deleted with them."
+        onDelete={deleteProjects}
+      />
     </div>
   );
 }

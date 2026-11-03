@@ -17,6 +17,10 @@ export function renameProject(projectId: string, name: string): Promise<Project>
   });
 }
 
+export function deleteProject(projectId: string): Promise<void> {
+  return apiFetch<void>(`/projects/${projectId}`, { method: "DELETE" });
+}
+
 export function selectProject(projectId: string): Promise<Project> {
   return apiFetch<Project>(`/projects/${projectId}/select`, { method: "POST" });
 }

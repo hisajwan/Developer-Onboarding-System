@@ -29,3 +29,17 @@ class VectorStore(Protocol):
     async def count_documents(self, project_id: str) -> int:
         """Number of distinct sources in this project that have at least one stored chunk."""
         ...
+
+    async def delete_project(self, project_id: str) -> None:
+        """Removes every chunk of this project."""
+        ...
+
+    async def sources(self, project_id: str) -> list[str]:
+        """The distinct sources (file names) in this project that have at least one chunk."""
+        ...
+
+    async def chunks_for_source(
+        self, project_id: str, source: str, limit: int
+    ) -> list[RetrievedChunk]:
+        """Up to `limit` of one source's chunks, in document order (score 0: not a search hit)."""
+        ...

@@ -25,6 +25,7 @@ from app.domain.ports import (
     ChatHistory,
     ChatSessionRegistry,
     CodeLinter,
+    CodeReviewer,
     DocumentReader,
     DocumentRegistry,
     DocumentStore,
@@ -57,9 +58,10 @@ from app.services.chat_session_service import ChatSessionService
 from app.services.code_review_service import CodeReviewService
 from app.services.evaluation_service import EvaluationService
 from app.services.ingestion_service import IngestionService
+from app.services.project_lifecycle_service import ProjectLifecycleService
 from app.services.project_review_service import ProjectReviewService
 from app.services.project_service import ProjectService
-from app.services.project_setup_service import ProjectSetupService
+from app.services.review_guidance import ProjectCodeReviewer, ReviewGuidance
 from app.services.user_profile_service import UserProfileService
 
 T = TypeVar("T")
@@ -114,6 +116,13 @@ class Container:
         return CodeReviewService(self.code_linter, self.llm_client)
 
     @shared
+    def review_guidance(self) -> ReviewGuidance:
+        return ReviewGuidance(self.embedder, self.vector_store)
+
+    def code_reviewer_for(self, project_id: str) -> CodeReviewer:
+        return ProjectCodeReviewer(self.code_review_service, self.review_guidance, project_id)
+
+    @shared
     def vector_store(self) -> VectorStore:
         return ChromaVectorStore(
             self._settings.chroma_dir, collection_name_for(self.embedder.model_name)
@@ -145,7 +154,7 @@ class Container:
 
     @shared
     def project_review_service(self) -> ProjectReviewService:
-        return ProjectReviewService(self.code_review_service, self.activity_log)
+        return ProjectReviewService(self.code_reviewer_for, self.activity_log)
 
     @shared
     def chat_history(self) -> ChatHistory:
@@ -164,12 +173,16 @@ class Container:
         return ChatSessionService(self.project_service, self.chat_session_registry)
 
     @shared
-    def project_setup_service(self) -> ProjectSetupService:
-        return ProjectSetupService(self.project_service, self.chat_session_service)
+    def project_lifecycle_service(self) -> ProjectLifecycleService:
+        return ProjectLifecycleService(
+            self.project_service, self.chat_session_service, self.ingestion_service
+        )
 
     @shared
     def user_profile_service(self) -> UserProfileService:
-        return UserProfileService(self.user_registry, self.password_hasher)
+        return UserProfileService(
+            self.user_registry, self.password_hasher, self.project_lifecycle_service
+        )
 
     @shared
     def password_hasher(self) -> PasswordHasher:
@@ -209,7 +222,7 @@ class Container:
         return ToolRegistry(
             [
                 self.retrieve_and_answer_tool_for(project_id),
-                ReviewCodeTool(self.code_review_service),
+                ReviewCodeTool(self.code_reviewer_for(project_id)),
             ]
         )
 
@@ -219,6 +232,6 @@ class Container:
     def evaluation_service_for(self, project_id: str) -> EvaluationService:
         return EvaluationService(
             self.agent_for(project_id),
-            self.code_review_service,
+            self.code_reviewer_for(project_id),
             call_snapshot=model_calls.snapshot,
         )

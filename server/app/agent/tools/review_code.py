@@ -48,7 +48,8 @@ def format_review(review: CodeReview) -> str:
             place = f"`{finding.file}` " if finding.file else ""
             where = f"{place}line {finding.line}: " if finding.line else place
             rule = f" (`{finding.rule_id}`)" if finding.rule_id else ""
-            lines.append(f"- **{finding.category}** · {where}{finding.message}{rule}")
+            per = f" _(per {finding.reference})_" if finding.reference else ""
+            lines.append(f"- **{finding.category}** · {where}{finding.message}{rule}{per}")
     if review.notes:
         lines += ["", *(f"_Note: {note}_" for note in review.notes)]
     return "\n".join(lines)

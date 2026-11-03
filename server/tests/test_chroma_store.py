@@ -124,6 +124,27 @@ async def test_count_documents_counts_distinct_sources(store: ChromaVectorStore)
 
 
 @pytest.mark.anyio
+async def test_sources_and_a_sources_chunks_are_listed_per_project(
+    store: ChromaVectorStore,
+) -> None:
+    await store.upsert(
+        PROJECT,
+        [
+            record("2", "second", [0.0, 1.0], "b.md", 1),
+            record("1", "first", [1.0, 0.0], "b.md", 0),
+            record("3", "other", [1.0, 1.0], "a.md", 0),
+        ],
+    )
+    await store.upsert(OTHER_PROJECT, [record("4", "not mine", [1.0, 0.0], "c.md", 0)])
+
+    assert await store.sources(PROJECT) == ["a.md", "b.md"]
+    chunks = await store.chunks_for_source(PROJECT, "b.md", limit=5)
+    assert [(c.chunk.text, c.score) for c in chunks] == [("first", 0.0), ("second", 0.0)]
+    assert len(await store.chunks_for_source(PROJECT, "b.md", limit=1)) == 1
+    assert await store.chunks_for_source(PROJECT, "c.md", limit=5) == []
+
+
+@pytest.mark.anyio
 async def test_chunks_are_still_there_after_a_restart(tmp_path: Path) -> None:
     path = tmp_path / "chroma"
     first = ChromaVectorStore(path)

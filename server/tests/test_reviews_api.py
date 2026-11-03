@@ -58,8 +58,10 @@ def test_a_flawed_snippet_gets_categorised_eslint_findings(
         "line": 2,
         "rule_id": "jsx-a11y/alt-text",
         "file": None,
+        "reference": None,
     }
     assert (body["kind"], body["notes"]) == ("snippet", [])
+    assert body["consulted"] == []  # the project has no documents yet
     # The fake LLM's echo is not review JSON, so the review says the model part is missing.
     assert body["judgement_available"] is False
     assert body["parse_error"] is None
@@ -75,6 +77,20 @@ def test_a_clean_snippet_gets_no_invented_findings(
 
     assert body["findings"] == []
     assert "no issues" in body["summary"]
+
+
+@requires_linter
+def test_a_projects_guidelines_are_consulted(auth_client: TestClient, project_id: str) -> None:
+    rules = b"# Contributing\n\nEvery image needs alt text. Use the Button component for buttons."
+    upload = auth_client.post(
+        f"/api/v1/projects/{project_id}/documents",
+        files={"file": ("CONTRIBUTING.md", rules, "text/markdown")},
+    )
+    assert upload.status_code == 200
+
+    body = review(auth_client, project_id, code=FLAWED).json()
+
+    assert body["consulted"] == ["CONTRIBUTING.md"]
 
 
 @requires_linter

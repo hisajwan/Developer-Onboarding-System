@@ -7,31 +7,18 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from app.domain.models import Project
-
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS projects (
-    id             TEXT PRIMARY KEY,
-    owner_username TEXT NOT NULL,
-    name           TEXT NOT NULL,
-    created_at     TEXT NOT NULL,
-    updated_at     TEXT NOT NULL
-)
-"""
-_INDEX = "CREATE INDEX IF NOT EXISTS idx_projects_owner ON projects(owner_username)"
+from app.infrastructure.storage.sqlite_schema import connect, ensure_schema
 
 _COLUMNS = "id, owner_username, name, created_at, updated_at"
 
 
 class SqliteProjectRegistry:
     def __init__(self, path: Path) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
         self._path = path
-        with closing(self._connect()) as connection, connection:
-            connection.execute(_SCHEMA)
-            connection.execute(_INDEX)
+        ensure_schema(path)
 
     def _connect(self) -> sqlite3.Connection:
-        return sqlite3.connect(self._path)
+        return connect(self._path)
 
     async def get(self, project_id: str) -> Project | None:
         return await asyncio.to_thread(self._get, project_id)

@@ -138,3 +138,9 @@ class IngestionService:
         # No keep_ids at all: every chunk this source has in the vector store is stale now.
         await self._vectors.remove_stale(project_id, name, keep_ids=set())
         await self._documents.delete(project_id, name)
+
+    async def delete_project_content(self, project_id: str) -> None:
+        """Removes a project's chunks and stored files: the parts of a project that live outside
+        SQLite, which its foreign keys can't reach. The registry rows go with the project row."""
+        await self._vectors.delete_project(project_id)
+        await self._documents.delete_project(project_id)

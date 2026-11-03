@@ -1,11 +1,12 @@
 import type { ButtonHTMLAttributes } from "react";
 import { cn } from "@/lib/cn";
 
-type Variant = "primary" | "ghost";
+type Variant = "primary" | "ghost" | "danger";
 
 const VARIANTS: Record<Variant, string> = {
   primary: "bg-primary text-primary-contrast hover:opacity-90",
   ghost: "bg-transparent text-ink hover:bg-surface",
+  danger: "bg-danger text-primary-contrast hover:opacity-90",
 };
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {

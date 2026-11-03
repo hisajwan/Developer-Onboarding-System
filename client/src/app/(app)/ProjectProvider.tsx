@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   createProject as apiCreateProject,
+  deleteProject as apiDeleteProject,
   listProjects,
   renameProject as apiRenameProject,
   selectProject as apiSelectProject,
@@ -18,6 +19,8 @@ interface ProjectContextValue {
   selectProject: (projectId: string) => void;
   createProject: (name: string) => Promise<Project>;
   renameProject: (projectId: string, name: string) => Promise<void>;
+  /** Deletes these projects and everything in them; if the current one goes, moves to another. */
+  deleteProjects: (projectIds: string[]) => Promise<void>;
   /** The "create a project" screen - shown full-page when there are none yet, or opened over the
    * current one on request (see ProjectSwitcher's "+"). */
   isCreateScreenOpen: boolean;
@@ -109,6 +112,28 @@ export function ProjectProvider({ initialProjectId, children }: ProjectProviderP
     setProjects((current) => current.map((project) => (project.id === projectId ? renamed : project)));
   }, []);
 
+  const deleteProjects = useCallback(
+    async (projectIds: string[]) => {
+      const deleted = new Set<string>();
+      try {
+        for (const projectId of projectIds) {
+          await apiDeleteProject(projectId);
+          deleted.add(projectId);
+        }
+      } finally {
+        // Even if one failed part-way, show what is actually gone.
+        const remaining = projects.filter((project) => !deleted.has(project.id));
+        setProjects(remaining);
+        if (currentProjectId && deleted.has(currentProjectId)) {
+          // With none left, no selection: AppBody then shows the create-project screen.
+          if (remaining[0]) selectProject(remaining[0].id);
+          else setCurrentProjectId(null);
+        }
+      }
+    },
+    [projects, currentProjectId, selectProject],
+  );
+
   const currentProject = projects.find((project) => project.id === currentProjectId) ?? null;
 
   return (
@@ -122,6 +147,7 @@ export function ProjectProvider({ initialProjectId, children }: ProjectProviderP
         selectProject,
         createProject,
         renameProject,
+        deleteProjects,
         isCreateScreenOpen,
         openCreateScreen,
         closeCreateScreen,

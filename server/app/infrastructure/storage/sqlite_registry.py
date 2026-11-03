@@ -7,29 +7,16 @@ from datetime import datetime
 from pathlib import Path
 
 from app.domain.models import IndexedDocument
-
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS documents (
-    project_id      TEXT NOT NULL,
-    filename        TEXT NOT NULL,
-    content_hash    TEXT NOT NULL,
-    index_signature TEXT NOT NULL,
-    chunk_count     INTEGER NOT NULL,
-    indexed_at      TEXT NOT NULL,
-    PRIMARY KEY (project_id, filename)
-)
-"""
+from app.infrastructure.storage.sqlite_schema import connect, ensure_schema
 
 
 class SqliteDocumentRegistry:
     def __init__(self, path: Path) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
         self._path = path
-        with closing(self._connect()) as connection, connection:
-            connection.execute(_SCHEMA)
+        ensure_schema(path)
 
     def _connect(self) -> sqlite3.Connection:
-        return sqlite3.connect(self._path)
+        return connect(self._path)
 
     async def get(self, project_id: str, filename: str) -> IndexedDocument | None:
         return await asyncio.to_thread(self._get, project_id, filename)

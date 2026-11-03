@@ -1,6 +1,7 @@
 """Keeps the original uploaded files on disk, one subfolder per project."""
 
 import asyncio
+import shutil
 from pathlib import Path
 
 
@@ -24,6 +25,10 @@ class DiskDocumentStore:
     async def delete(self, project_id: str, filename: str) -> bool:
         path = self._directory / project_id / filename
         return await asyncio.to_thread(_delete, path)
+
+    async def delete_project(self, project_id: str) -> None:
+        directory = self._directory / project_id
+        await asyncio.to_thread(shutil.rmtree, directory, ignore_errors=True)
 
 
 def _list_filenames(directory: Path) -> list[str]:

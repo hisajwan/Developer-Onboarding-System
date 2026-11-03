@@ -11,6 +11,8 @@ export interface ReviewFinding {
   rule_id: string | null;
   /** The changed file, when a diff was reviewed. */
   file: string | null;
+  /** The project document whose rule this finding follows. */
+  reference: string | null;
 }
 
 export interface CodeReview {
@@ -24,6 +26,8 @@ export interface CodeReview {
   kind: "snippet" | "diff";
   /** What the review skipped, e.g. diff fragments ESLint can't parse on their own. */
   notes: string[];
+  /** Project documents the review checked the code against. */
+  consulted: string[];
 }
 
 /** A review together with the exact code it was run on. */

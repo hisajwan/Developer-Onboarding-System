@@ -7,6 +7,7 @@ from app.domain.models import IndexedDocument
 from app.domain.ports import DocumentRegistry, DocumentStore
 from app.infrastructure.storage.disk_documents import DiskDocumentStore
 from app.infrastructure.storage.sqlite_registry import SqliteDocumentRegistry
+from tests.helpers import seed_parents
 
 NOW = datetime(2026, 9, 21, 12, 0, tzinfo=UTC)
 PROJECT = "proj-1"
@@ -19,6 +20,7 @@ def document(name: str = "a.md", digest: str = "h1", chunks: int = 3, at: dateti
 
 @pytest.fixture
 def registry(tmp_path: Path) -> SqliteDocumentRegistry:
+    seed_parents(tmp_path / "db" / "app.db", projects=(PROJECT, OTHER_PROJECT))
     return SqliteDocumentRegistry(tmp_path / "db" / "app.db")
 
 
@@ -73,6 +75,7 @@ async def test_list_shows_the_newest_first(registry: SqliteDocumentRegistry) -> 
 @pytest.mark.anyio
 async def test_registry_survives_a_restart(tmp_path: Path) -> None:
     path = tmp_path / "app.db"
+    seed_parents(path, projects=(PROJECT,))
     await SqliteDocumentRegistry(path).record(PROJECT, document())
 
     assert await SqliteDocumentRegistry(path).get(PROJECT, "a.md") == document()

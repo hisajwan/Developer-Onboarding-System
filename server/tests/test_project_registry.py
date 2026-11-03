@@ -6,6 +6,9 @@ import pytest
 from app.domain.models import Project
 from app.domain.ports import ProjectRegistry
 from app.infrastructure.storage.sqlite_project_registry import SqliteProjectRegistry
+from tests.helpers import seed_parents
+
+USERS = ("dev", "someone-else")
 
 NOW = datetime(2026, 9, 22, 12, 0, tzinfo=UTC)
 
@@ -18,6 +21,7 @@ def project(
 
 @pytest.fixture
 def registry(tmp_path: Path) -> SqliteProjectRegistry:
+    seed_parents(tmp_path / "db" / "app.db", users=USERS)
     return SqliteProjectRegistry(tmp_path / "db" / "app.db")
 
 
@@ -87,6 +91,7 @@ async def test_delete_removes_the_project_and_ignores_unknown_ids(
 @pytest.mark.anyio
 async def test_registry_survives_a_restart(tmp_path: Path) -> None:
     path = tmp_path / "app.db"
+    seed_parents(path, users=USERS)
     await SqliteProjectRegistry(path).create(project())
 
     assert await SqliteProjectRegistry(path).get("proj-1") == project()

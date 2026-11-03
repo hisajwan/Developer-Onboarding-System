@@ -6,7 +6,6 @@ from pydantic import SecretStr
 from app.core.config import Settings
 from app.core.exceptions import ConfigurationError
 from app.infrastructure.chat_models.fake import FakeToolCallingChatModel
-from app.infrastructure.chat_models.openrouter import OpenRouterToolCallingChatModel
 from app.infrastructure.chat_models.registry import create_chat_model
 from app.infrastructure.gemini.chat import GeminiChatModel
 from app.infrastructure.groq.chat import GroqChatModel
@@ -50,35 +49,15 @@ def test_gemini_without_a_key_is_a_configuration_error() -> None:
         create_chat_model(settings)
 
 
-@pytest.mark.parametrize(
-    ("provider", "model_class", "key_field"),
-    [
-        ("groq", GroqChatModel, "groq_api_key"),
-        ("openrouter", OpenRouterToolCallingChatModel, "openrouter_api_key"),
-    ],
-)
-def test_other_chat_models_are_built_when_their_key_is_present(
-    provider: str, model_class: type, key_field: str
-) -> None:
-    settings = Settings(llm_provider=provider, **{key_field: SecretStr("k")}, _env_file=None)
+def test_groq_chat_model_is_built_when_its_key_is_present() -> None:
+    settings = Settings(llm_provider="groq", groq_api_key=SecretStr("k"), _env_file=None)
 
-    assert isinstance(create_chat_model(settings), model_class)
+    assert isinstance(create_chat_model(settings), GroqChatModel)
 
 
-@pytest.mark.parametrize("provider", ["groq", "openrouter"])
-def test_other_chat_models_without_a_key_are_a_configuration_error(provider: str) -> None:
-    settings = Settings(llm_provider=provider, _env_file=None)
-
+def test_groq_chat_model_without_a_key_is_a_configuration_error() -> None:
     with pytest.raises(ConfigurationError):
-        create_chat_model(settings)
-
-
-def test_openrouter_chat_model_generation_is_not_implemented_yet() -> None:
-    settings = Settings(openrouter_api_key=SecretStr("k"), _env_file=None)
-    model = OpenRouterToolCallingChatModel.from_settings(settings)
-
-    with pytest.raises(NotImplementedError):
-        model.invoke("hello")
+        create_chat_model(Settings(llm_provider="groq", _env_file=None))
 
 
 def test_groq_uses_the_configured_model() -> None:

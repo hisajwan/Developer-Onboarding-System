@@ -7,7 +7,7 @@ from typing import Literal
 from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-LLMProviderName = Literal["fake", "gemini", "groq", "openrouter"]
+LLMProviderName = Literal["fake", "gemini", "groq"]
 EmbeddingProviderName = Literal["fake", "gemini"]
 CaptionProviderName = Literal["fake", "gemini"]
 
@@ -51,7 +51,6 @@ class Settings(BaseSettings):
         # `LLM_FALLBACK_PROVIDER=` in .env arrives as "", which should mean "no fallback".
         return None if isinstance(value, str) and not value.strip() else value
 
-    openrouter_api_key: SecretStr | None = None
 
     # Login: accounts live in the users table (see scripts/create_user.py), not here. This secret
     # only signs the session token, so it alone must be set in server/.env.

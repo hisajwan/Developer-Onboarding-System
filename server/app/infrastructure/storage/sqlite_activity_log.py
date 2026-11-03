@@ -7,33 +7,18 @@ from datetime import datetime
 from pathlib import Path
 
 from app.domain.models import ActivityEvent, ActivityKind
+from app.infrastructure.storage.sqlite_schema import connect, ensure_schema
 
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS activity (
-    id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    project_id    TEXT NOT NULL,
-    kind          TEXT NOT NULL,
-    source        TEXT NOT NULL,
-    title         TEXT NOT NULL,
-    detail        TEXT NOT NULL,
-    finding_count INTEGER,
-    created_at    TEXT NOT NULL
-)
-"""
-_INDEX = "CREATE INDEX IF NOT EXISTS idx_activity_project ON activity(project_id, created_at)"
 _COLUMNS = "project_id, kind, source, title, detail, finding_count, created_at"
 
 
 class SqliteActivityLog:
     def __init__(self, path: Path) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
         self._path = path
-        with closing(self._connect()) as connection, connection:
-            connection.execute(_SCHEMA)
-            connection.execute(_INDEX)
+        ensure_schema(path)
 
     def _connect(self) -> sqlite3.Connection:
-        return sqlite3.connect(self._path)
+        return connect(self._path)
 
     async def record(self, event: ActivityEvent) -> None:
         await asyncio.to_thread(self._record, event)

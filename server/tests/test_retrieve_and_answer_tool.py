@@ -1,8 +1,10 @@
 import pytest
 
 from app.agent.tools.retrieve_and_answer import (
+    _SYSTEM_PROMPT,
     NO_MATCH_MESSAGE,
     RetrieveAndAnswerTool,
+    files_named_in,
     split_sources,
 )
 from app.domain.ports import Tool
@@ -137,6 +139,60 @@ class ScriptedLLM:
 
 
 RETRIEVED = ("README.md", "Architecture.pdf", "Competitor Aegis zero knowledge.png")
+
+
+# --- questions answered by a file's name ------------------------------------------------------
+
+FILES = ["README.md", "CONTRIBUTING.md", "Competitor Aegis zero knowledge architcture.png"]
+
+
+@pytest.mark.parametrize(
+    ("question", "named"),
+    [
+        ("Who is the competitor?", ["Competitor Aegis zero knowledge architcture.png"]),
+        ("Which competitors are mentioned?", ["Competitor Aegis zero knowledge architcture.png"]),
+        ("What does the readme say?", ["README.md"]),
+        ("What is in this project's documents?", []),  # only stopwords
+        ("How do I set up?", []),
+    ],
+)
+def test_files_named_in_matches_meaningful_words_of_the_file_name(
+    question: str, named: list[str]
+) -> None:
+    assert files_named_in(question, FILES) == named
+
+
+@pytest.mark.anyio
+async def test_a_file_whose_name_answers_the_question_is_added_when_search_misses_it(
+    embedder: FakeEmbedder, vectors: InMemoryVectorStore
+) -> None:
+    await index_texts(
+        vectors,
+        embedder,
+        [
+            ("README.md", "Who builds this and who is it for: the Ente team, for everyone."),
+            ("Competitor Aegis zero knowledge architcture.png", "Browser derives keys with PBKDF2.",
+             0, True, 1),
+        ],
+    )
+    llm = ScriptedLLM("Aegis.\nSOURCES: Competitor Aegis zero knowledge architcture.png")
+    tool = RetrieveAndAnswerTool(embedder, vectors, llm, PROJECT_ID, top_k=1)
+
+    result = await tool.run("Who is the competitor?")
+
+    [prompt] = llm.prompts
+    assert prompt.startswith(
+        "Project files: Competitor Aegis zero knowledge architcture.png, README.md"
+    )
+    assert "File: Competitor Aegis zero knowledge architcture.png (image description" in prompt
+    assert result.retrieved == ("README.md", "Competitor Aegis zero knowledge architcture.png")
+    assert result.sources == ("Competitor Aegis zero knowledge architcture.png",)
+
+
+def test_the_prompt_treats_a_file_name_as_evidence() -> None:
+    assert '"Who is the competitor?" is answered "Aegis"' in _SYSTEM_PROMPT
+    # Answered directly, not "the documents don't cover it, but the file name indicates ...".
+    assert "do not also say the documents don't cover it" in _SYSTEM_PROMPT
 
 
 @pytest.mark.parametrize(
